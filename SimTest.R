@@ -15,41 +15,48 @@ X.mean <- 0
 X.sd <- 1
 X <- rnorm(100000, X.mean, X.sd)
 mobRate <- .25
-# X.b1 <- -1.83
+X.M.cor <- -.05
+u0.mean <- 0
+u0.sd <- 1
+e.mean <- 0
+e.sd <- 1
 
+X.M.Bs <- round(gen_Mob_Coef(X, X.M.cor, mobRate), 2)
+RIM.Bs <- c(B0 = 0, X = 1, M = 1, M.S = 1, X.S = 1)
 
-gen_Mob_Coef <- funciton()
-X.b1 <- uniroot(function(b1) mean(-.05 - cor(flip(expit(b1 * X)), X)), c(-5, 5))
-
-cor(flip(expit(X.b1$root * X)), X)
-
-Bs <- c(uniroot(function(X.b0) mean(expit(X.b0 + X.b1$root * X)) - mobRate, 
-                c(-200,200))[[1]], 
-        X.b1$root)
-
-
+#----------------------
 # Generate Data
+#----------------------
 
 df <- data.frame(ID = 1:n.std) %>%
   mutate(X = rnorm(n.std, X.mean, X.sd),
-         PS.M = expit(Bs[1] + Bs[2] * X),
+         PS.M = expit(X.M.Bs[1] + X.M.Bs[2] * X),
          M = rbinom(n.std, 1, PS.M),
          nSchools = (M + rbinom(n.std, 1, M*tripRate)) + 1,
          S1 = sample(1:n.sch, n.std, replace = T),
          S2 = moveSch(S1, M, nSchools >= 2),
          S3 = moveSch(S2, M, nSchools >= 3))
 
-# undebug(moveSch)
 
+#----------------------
 # Generate Weights
+#----------------------
 
 df_eq <- cbind(df, w_type = "Equal", genWeights(df$nSchools))
 df_uq <- cbind(df, w_type = "Unequal", genWeights(df$nSchools, ws = c(1/4, 1/6, 4/6)))
 
 df <- rbind(df_eq, df_uq)
 
-head(df)
+#----------------------
+# Generate L2 random effects
+#----------------------
 
+df_sch <- data.frame(SID = 1:n.sch) %>%
+  mutate(u0 = rnorm(n.sch, u0.mean, u0.sd))
+
+#----------------------
+# Generate weighted L2 predictors
+#----------------------
 
 df_sch <- df %>% 
   select(S1:S3, X, M) %>%
@@ -57,7 +64,8 @@ df_sch <- df %>%
   group_by(Time, SID) %>%
   summarise(M = mean(M),
             X = mean(X)) %>%
-  ungroup()
+  ungroup() %>%
+  left_join(df_sch)
 
 df <- df %>%
   left_join(filter(df_sch, Time == "S1") %>% select(-Time),
@@ -70,11 +78,57 @@ df <- df %>%
             suffix = c("", ".S3"),
             by = c("S3" = "SID"))
 
-df %>%
-  mutate(M.S = (w1 * M.S1 + w2 * M.S2 + w3 * M.S3),
-         X.S = (w1 * X.S1 + w2 * X.S2 + w3 * X.S3))
+df <- df %>%
+  mutate(w.M.S = (w1 * M.S1 + w2 * M.S2 + w3 * M.S3),
+         w.X.S = (w1 * X.S1 + w2 * X.S2 + w3 * X.S3),
+         w.u0 = (w1 * u0 + w2 * u0.S2 + w3 * u0.S3))
 
-head(df, 10)
+#----------------------
+# Generate Y
+#----------------------
+
+head(df)
+
+FE <- df %>%
+  mutate(int = 1) %>%
+  select(int, X, M, w.M.S, w.X.S) %>% 
+  as.matrix
+
+RE <- df %>%
+  select(w.u0) %>%
+  as.matrix()
+
+RIM.Bs
+
+df$Y <- t(RIM.Bs %*% t(FE)) + RE
+
+#----------------------
+# Test Analysis
+#----------------------
+
+head(df)
+
+test <- df %>%
+  select(w_type, ID, S1:S3, w1:w3, X, M, w.M.S, w.X.S)
+
+toMM <- function(s_w) {
+  l <- length(s_w)
+  s <- s_w[1:(l*.5)]
+  w <- s_w[(l*.5 + 1):l]
+  mm <- c(unique(s), rep(0, length(s) - length(unique(s))))
+  ww <- rep(0, length(s))
+  i <- 1
+  
+  for(i in 1:length(s)) ww[i] <- sum(w[s %in% mm[i]])
+  
+  c(mm, ww)
+}
+
+test <- apply(select(df, S1:S3, w1:w3), 1, toMM)
+
+#----------------------
+# Explore Data
+#----------------------
 
 df %>%
   select(ID, w_type, S1:S3, w1:w3) %>%
