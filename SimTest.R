@@ -1,4 +1,6 @@
 library(stringr)
+library(R2MLwiN)
+options(MLwiN_path="C:/Program Files/MLwiN v2.36/")
 
 rm(list = ls())
 
@@ -8,21 +10,24 @@ ecls <- read.csv("eqData SCL.csv")
 cor(ecls$Mob, ecls$PRE)
 
 # Conditions
-tripRate <- .375
 n.sch <- 100
 n.std <- 3000
 X.mean <- 0
 X.sd <- 1
-X <- rnorm(100000, X.mean, X.sd)
 mobRate <- .25
+tripRate <- .375
 X.M.cor <- -.05
-u0.mean <- 0
-u0.sd <- 1
+
 e.mean <- 0
 e.sd <- 1
 
-X.M.Bs <- round(gen_Mob_Coef(X, X.M.cor, mobRate), 2)
-RIM.Bs <- c(B0 = 0, X = 1, M = 1, M.S = 1, X.S = 1)
+ICC <- .15
+
+u0.mean <- 0
+u0.sd <- sqrt((e.sd^2 * ICC) / (1 - ICC))
+
+X.M.Bs <- round(gen_Mob_Coef(rnorm(100000, X.mean, X.sd), X.M.cor, mobRate), 2)
+RIM.Bs <- c(B0 = 0, X = 1, M = 1, M.S = 1, X.S = 1, u0 = 1, e = 1)
 
 #----------------------
 # Generate Data
@@ -31,8 +36,9 @@ RIM.Bs <- c(B0 = 0, X = 1, M = 1, M.S = 1, X.S = 1)
 df <- data.frame(ID = 1:n.std) %>%
   mutate(X = rnorm(n.std, X.mean, X.sd),
          PS.M = expit(X.M.Bs[1] + X.M.Bs[2] * X),
-         M = rbinom(n.std, 1, PS.M),
-         nSchools = (M + rbinom(n.std, 1, M*tripRate)) + 1,
+         M = flip(PS.M),
+         e = rnorm(n.std, e.mean, e.sd),
+         nSchools = (M + flip(M*tripRate)) + 1,
          S1 = sample(1:n.sch, n.std, replace = T),
          S2 = moveSch(S1, M, nSchools >= 2),
          S3 = moveSch(S2, M, nSchools >= 3))
@@ -71,36 +77,27 @@ df <- df %>%
   left_join(filter(df_sch, Time == "S1") %>% select(-Time),
             suffix = c("", ".S1"),
             by = c("S1" = "SID")) %>%
-  left_join(filter(df_sch, Time == "S2") %>% select(-Time),
+  left_join(filter(df_sch, Time == "S1") %>% select(-Time),
             suffix = c("", ".S2"),
             by = c("S2" = "SID")) %>%
-  left_join(filter(df_sch, Time == "S3") %>% select(-Time),
+  left_join(filter(df_sch, Time == "S1") %>% select(-Time),
             suffix = c("", ".S3"),
             by = c("S3" = "SID"))
 
 df <- df %>%
-  mutate(w.M.S = (w1 * M.S1 + w2 * M.S2 + w3 * M.S3),
-         w.X.S = (w1 * X.S1 + w2 * X.S2 + w3 * X.S3),
+  mutate(wMj = (w1 * M.S1 + w2 * M.S2 + w3 * M.S3),
+         wXj = (w1 * X.S1 + w2 * X.S2 + w3 * X.S3),
          w.u0 = (w1 * u0 + w2 * u0.S2 + w3 * u0.S3))
+
+df %>% select(ID, M, S1:S3, w1:w3, M.S1, M.S2, M.S3, wMj)
 
 #----------------------
 # Generate Y
 #----------------------
+RIM_form <- ~ 1 + X + M + wMj + wXj + w.u0 + e
 
-head(df)
+df$Y <- as.numeric(t(RIM.Bs %*% t(model.matrix(RIM_form, df))))
 
-FE <- df %>%
-  mutate(int = 1) %>%
-  select(int, X, M, w.M.S, w.X.S) %>% 
-  as.matrix
-
-RE <- df %>%
-  select(w.u0) %>%
-  as.matrix()
-
-RIM.Bs
-
-df$Y <- t(RIM.Bs %*% t(FE)) + RE
 
 #----------------------
 # Test Analysis
@@ -108,10 +105,8 @@ df$Y <- t(RIM.Bs %*% t(FE)) + RE
 
 head(df)
 
-test <- df %>%
-  select(w_type, ID, S1:S3, w1:w3, X, M, w.M.S, w.X.S)
-
 toMM <- function(s_w) {
+  s_w <- as.numeric(s_w)
   l <- length(s_w)
   s <- s_w[1:(l*.5)]
   w <- s_w[(l*.5 + 1):l]
@@ -121,10 +116,40 @@ toMM <- function(s_w) {
   
   for(i in 1:length(s)) ww[i] <- sum(w[s %in% mm[i]])
   
-  c(mm, ww)
+  mms <- data.frame(t(c(mm, ww)))
+  names(mms) <- c(paste("mm", 1:(l*.5), sep = ""), paste("ww", 1:(l*.5), sep = ""))
+  return(mms)
 }
 
-test <- apply(select(df, S1:S3, w1:w3), 1, toMM)
+df <- df %>%
+  select(S1:S3, w1:w3) %>%
+  rowwise() %>%
+  do(toMM(.)) %>%
+  cbind(df)
+
+head(df)
+
+
+df2 <- df %>% 
+  filter(w_type == "Unequal") %>%
+  select(ID, mm1:ww3, Y, X, M, wMj, wXj) %>%
+  arrange(mm1, mm2, mm3)
+
+
+mm <- list(list(mmvar = list("mm1", "mm2", "mm3"),
+                weights = list("ww1", "ww2", "ww3")),
+           NA)
+
+RIM_Equal_formula <- Y ~ 1 + X + M + wMj + wXj + (1 | mm1) + (1 | ID)
+RIM_Equal <- runMLwiN(Formula = RIM_Equal_formula,
+                      data = df2,
+                      estoptions = list(EstM = 1, drop.data = F, mm = mm))
+
+estimates <- coef(RIM_Equal)
+estimates <- c(coef(RIM_Equal), ICC = estimates["RP2_var_Intercept"]/(estimates["RP1_var_Intercept"] + estimates["RP2_var_Intercept"]))
+pars <- c(RIM.Bs[1:5], u0 = u0.sd^2, e = e.sd^2, ICC = ICC)
+# eq <- cbind(true = pars, estimates)
+uq <- cbind(true = pars, estimates)
 
 #----------------------
 # Explore Data
