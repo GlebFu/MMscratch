@@ -16,7 +16,7 @@ X.mean <- 0
 X.sd <- 1
 mobRate <- .25
 tripRate <- .375
-X.M.cor <- -.05
+X.M.cor <- 0
 
 e.mean <- 0
 e.sd <- 1
@@ -48,10 +48,12 @@ df <- data.frame(ID = 1:n.std) %>%
 # Generate Weights
 #----------------------
 
-df_eq <- cbind(df, w_type = "Equal", genWeights(df$nSchools))
-df_uq <- cbind(df, w_type = "Unequal", genWeights(df$nSchools, ws = c(1/4, 1/6, 4/6)))
+df_r_eq <- cbind(df, isRandom = T, isEqual = T, genWeights(df$nSchools))
+df_r_uq <- cbind(df, isRandom = T, isEqual = F, genWeights(df$nSchools, ws = c(1/6, 1/6, 4/6)))
+df_f_eq <- cbind(df, isRandom = F, isEqual = T, genWeights(df$nSchools, sd = 0))
+df_f_uq <- cbind(df, isRandom = F, isEqual = F, genWeights(df$nSchools, ws = c(1/6, 1/6, 4/6), sd = 0))
 
-df <- rbind(df_eq, df_uq)
+df <- rbind(df_r_eq, df_r_uq, df_f_eq, df_f_uq)
 
 #----------------------
 # Generate L2 random effects
@@ -89,15 +91,28 @@ df <- df %>%
          wXj = (w1 * X.S1 + w2 * X.S2 + w3 * X.S3),
          w.u0 = (w1 * u0 + w2 * u0.S2 + w3 * u0.S3))
 
-df %>% select(ID, M, S1:S3, w1:w3, M.S1, M.S2, M.S3, wMj)
+# df %>% 
+#   filter(M == 1) %>%
+#   group_by(w_type, nSchools) %>%
+#   sample(10) %>% 
+#   select(ID, w_type, M, S1:S3, w1:w3, M.S1, M.S2, M.S3, wMj)
 
 #----------------------
 # Generate Y
 #----------------------
 RIM_form <- ~ 1 + X + M + wMj + wXj + w.u0 + e
 
-df$Y <- as.numeric(t(RIM.Bs %*% t(model.matrix(RIM_form, df))))
+X_EQ <- t(model.matrix(RIM_form, filter(df, isEqual, isRandom) %>% arrange(ID)))
 
+Y_EQ <- as.numeric(t(RIM.Bs %*% X_EQ))
+
+X_UQ <- t(model.matrix(RIM_form, filter(df, !isEqual, isRandom) %>% arrange(ID)))
+
+Y_UQ <- as.numeric(t(RIM.Bs %*% X_UQ))
+
+df <- data.frame(Y_EQ, Y_UQ) %>%
+  mutate(ID = 1:n()) %>%
+  left_join(df)
 
 #----------------------
 # Test Analysis
@@ -110,6 +125,9 @@ toMM <- function(s_w) {
   l <- length(s_w)
   s <- s_w[1:(l*.5)]
   w <- s_w[(l*.5 + 1):l]
+  
+  n_s <- length(unique(s))
+  
   mm <- c(unique(s), rep(0, length(s) - length(unique(s))))
   ww <- rep(0, length(s))
   i <- 1
@@ -118,6 +136,10 @@ toMM <- function(s_w) {
   
   mms <- data.frame(t(c(mm, ww)))
   names(mms) <- c(paste("mm", 1:(l*.5), sep = ""), paste("ww", 1:(l*.5), sep = ""))
+  
+  
+  
+  
   return(mms)
 }
 
@@ -130,9 +152,8 @@ df <- df %>%
 head(df)
 
 
-df2 <- df %>% 
-  filter(w_type == "Unequal") %>%
-  select(ID, mm1:ww3, Y, X, M, wMj, wXj) %>%
+df_analysis <- df %>% 
+  select(ID, isEqual, isRandom, mm1:ww3, Y_EQ, Y_UQ, X, M, wMj, wXj) %>%
   arrange(mm1, mm2, mm3)
 
 
@@ -140,75 +161,127 @@ mm <- list(list(mmvar = list("mm1", "mm2", "mm3"),
                 weights = list("ww1", "ww2", "ww3")),
            NA)
 
-RIM_Equal_formula <- Y ~ 1 + X + M + wMj + wXj + (1 | mm1) + (1 | ID)
-RIM_Equal <- runMLwiN(Formula = RIM_Equal_formula,
-                      data = df2,
-                      estoptions = list(EstM = 1, drop.data = F, mm = mm))
+RIM_EQ_FRM <- Y_EQ ~ 1 + X + M + wMj + wXj + (1 | mm1) + (1 | ID)
 
-estimates <- coef(RIM_Equal)
-estimates <- c(coef(RIM_Equal), ICC = estimates["RP2_var_Intercept"]/(estimates["RP1_var_Intercept"] + estimates["RP2_var_Intercept"]))
-pars <- c(RIM.Bs[1:5], u0 = u0.sd^2, e = e.sd^2, ICC = ICC)
-# eq <- cbind(true = pars, estimates)
-uq <- cbind(true = pars, estimates)
+RIM_EQ_R_EQ <- runMLwiN(Formula = RIM_EQ_FRM,
+                        data = filter(df_analysis, isEqual, isRandom),
+                        estoptions = list(EstM = 1, drop.data = F, mm = mm))
+
+RIM_EQ_F_EQ <- runMLwiN(Formula = RIM_EQ_FRM,
+                        data = filter(df_analysis, isEqual, !isRandom),
+                        estoptions = list(EstM = 1, drop.data = F, mm = mm))
+
+RIM_EQ_F_UQ <- runMLwiN(Formula = RIM_EQ_FRM,
+                        data = filter(df_analysis, !isEqual, !isRandom),
+                        estoptions = list(EstM = 1, drop.data = F, mm = mm))
+
+RIM_UQ_FRM <- Y_UQ ~ 1 + X + M + wMj + wXj + (1 | mm1) + (1 | ID)
+
+RIM_UQ_R_UQ <- runMLwiN(Formula = RIM_UQ_FRM,
+                        data = filter(df_analysis, !isEqual, isRandom),
+                        estoptions = list(EstM = 1, drop.data = F, mm = mm))
+
+RIM_UQ_F_EQ <- runMLwiN(Formula = RIM_UQ_FRM,
+                        data = filter(df_analysis, isEqual, !isRandom),
+                        estoptions = list(EstM = 1, drop.data = F, mm = mm))
+
+RIM_UQ_F_UQ <- runMLwiN(Formula = RIM_UQ_FRM,
+                        data = filter(df_analysis, !isEqual, !isRandom),
+                        estoptions = list(EstM = 1, drop.data = F, mm = mm))
+
+
+
+getCoefs <- function(mdl) {
+  estimates <- coef(mdl)
+  estimates <- c(coef(mdl), ICC = estimates["RP2_var_Intercept"]/(estimates["RP1_var_Intercept"] + estimates["RP2_var_Intercept"]))
+  pars <- c(RIM.Bs[1:5], u0 = u0.sd^2, e = e.sd^2, ICC = ICC)
+  data.frame(vars = names(pars), 
+             true = pars, 
+             estimates, 
+             EstEqual = ifelse(mdl@data$isEqual[1], "EQ", "UQ"), 
+             EstRandom = ifelse(mdl@data$isRandom[1], "R", "F"),
+             Gen = ifelse(str_detect(as.character(mdl@call)[2], "EQ"), "EQ", "UQ"),
+             stringsAsFactors = F,
+             row.names = NULL)
+}
+
+
+mods <- list(RIM_EQ_R_EQ, RIM_EQ_F_EQ, RIM_EQ_F_UQ, RIM_UQ_R_UQ, RIM_UQ_F_EQ, RIM_UQ_F_UQ)
+
+res <- bind_rows(lapply(mods, getCoefs)) %>%
+  mutate(Est = paste(EstEqual, EstRandom, sep = "_"))
+
+res %>%
+  ggplot(aes(x = vars, y = estimates, color = Est)) +
+  geom_point() +
+  geom_point(aes(y = true), shape = "x") + 
+  facet_wrap(~ Gen)
+
+res %>%
+  ggplot(aes(x = Gen, y = estimates, color = Est)) +
+  geom_point() +
+  geom_hline(aes(yintercept = true)) + 
+  geom_hline(aes(yintercept = true + c(-.1, .1)), linetype = "dashed") +
+  facet_wrap(~ vars, scales = "free_y")
 
 #----------------------
 # Explore Data
 #----------------------
 
-df %>%
-  select(ID, w_type, S1:S3, w1:w3) %>%
-  gather(key = "Var.Time", value = "value", S1:S3, w1:w3) %>%
-  mutate(var = str_sub(Var.Time, end = 1),
-       time = paste("t", str_sub(Var.Time, start = 2), sep = "")) %>%
-  select(-Var.Time) %>%
-  spread(key = var, value = value) %>%
-  group_by(ID, w_type, S) %>%
-  mutate(w2 = sum(w))
-
-df %>%
-  select(nSchools, w1:w3, w_type) %>%
-  gather(key = time, value = weight, -nSchools, -w_type) %>%
-  filter(weight != 0) %>%
-  ggplot(aes(x = weight, color = time)) +
-  geom_density() +
-  facet_grid(w_type~nSchools)
-
-df %>%
-  select(w_type, nSchools, w1:w3) %>%
-  gather(key = time, value = weight, -nSchools, -w_type) %>%
-  filter(weight != 0) %>%
-  group_by(w_type, nSchools, time) %>%
-  summarise(m = mean(weight),
-            s = sd(weight),
-            n = n())
-
-
-df %>%
-  select(M, S1, S2, S3, w_type) %>%
-  gather(key = Time, value = ID, -M, -w_type) %>%
-  ggplot(aes(x = ID, fill = as.factor(M))) +
-  geom_bar() +
-  facet_wrap(w_type~Time)
-
-set.seed(0115)
-
-df %>%
-  filter(M == 1) %>%
-  group_by(w_type) %>%
-  sample_n(20) %>% 
-  select(ID, w1:w3, w_type) %>%
-  gather(key = time, value = weight, w1:w3) %>%
-  ungroup() %>%
-  mutate(ID = as.factor(ID),
-         time = forcats::fct_rev(time)) %>%
-  ggplot(aes(x = ID, y = weight, fill = time)) +
-  geom_bar(stat = "identity") +
-  geom_hline(yintercept = c(1/3, 2/3, 1)) +
-  coord_flip() +
-  scale_fill_brewer(type = "qual", palette = 4, direction = -1) +
-  facet_wrap(~ w_type, ncol = 1, scale = "free_y")
-
-filter(df, M == 1) %>% head(30)
+# df %>%
+#   select(ID, w_type, S1:S3, w1:w3) %>%
+#   gather(key = "Var.Time", value = "value", S1:S3, w1:w3) %>%
+#   mutate(var = str_sub(Var.Time, end = 1),
+#        time = paste("t", str_sub(Var.Time, start = 2), sep = "")) %>%
+#   select(-Var.Time) %>%
+#   spread(key = var, value = value) %>%
+#   group_by(ID, w_type, S) %>%
+#   mutate(w2 = sum(w))
+# 
+# df %>%
+#   select(nSchools, w1:w3, w_type) %>%
+#   gather(key = time, value = weight, -nSchools, -w_type) %>%
+#   filter(weight != 0) %>%
+#   ggplot(aes(x = weight, color = time)) +
+#   geom_density() +
+#   facet_grid(w_type~nSchools)
+# 
+# df %>%
+#   select(w_type, nSchools, w1:w3) %>%
+#   gather(key = time, value = weight, -nSchools, -w_type) %>%
+#   filter(weight != 0) %>%
+#   group_by(w_type, nSchools, time) %>%
+#   summarise(m = mean(weight),
+#             s = sd(weight),
+#             n = n())
+# 
+# 
+# df %>%
+#   select(M, S1, S2, S3, w_type) %>%
+#   gather(key = Time, value = ID, -M, -w_type) %>%
+#   ggplot(aes(x = ID, fill = as.factor(M))) +
+#   geom_bar() +
+#   facet_wrap(w_type~Time)
+# 
+# set.seed(0115)
+# 
+# df %>%
+#   filter(M == 1) %>%
+#   group_by(w_type) %>%
+#   sample_n(20) %>% 
+#   select(ID, w1:w3, w_type) %>%
+#   gather(key = time, value = weight, w1:w3) %>%
+#   ungroup() %>%
+#   mutate(ID = as.factor(ID),
+#          time = forcats::fct_rev(time)) %>%
+#   ggplot(aes(x = ID, y = weight, fill = time)) +
+#   geom_bar(stat = "identity") +
+#   geom_hline(yintercept = c(1/3, 2/3, 1)) +
+#   coord_flip() +
+#   scale_fill_brewer(type = "qual", palette = 4, direction = -1) +
+#   facet_wrap(~ w_type, ncol = 1, scale = "free_y")
+# 
+# filter(df, M == 1) %>% head(30)
 
 
 

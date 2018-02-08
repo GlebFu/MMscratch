@@ -8,7 +8,7 @@ logit <- function(p) log(p/(1 - p))
 expit <- function(x) exp(x) / (exp(x) + 1)
 flip <- function(ps) rbinom(length(ps), 1, ps)
 
-genWeights <- function(nS, max_schs = max(nS), ws = rep(.5, max_schs)) {
+genWeights <- function(nS, max_schs = max(nS), ws = rep(.5, max_schs), sd = 1) {
 
   w <- data.frame(matrix(0, length(nS), max_schs))
   names(w) <- paste("w", 1:max_schs, sep = "")
@@ -16,13 +16,13 @@ genWeights <- function(nS, max_schs = max(nS), ws = rep(.5, max_schs)) {
   w[nS==1, 1] <- 1
 
   w[nS == 2,] <- w[nS == 2,] %>%
-    mutate(w1 = expit(rnorm(n = n(), m = logit(ws[1]))),
+    mutate(w1 = expit(rnorm(n = n(), m = logit(ws[1]), sd = sd)),
            w2 = 1 - w1)
   
   w[nS == 3, ] <- w[nS == 3, ] %>%
-    mutate(w1 = expit(rnorm(n = n(), m = logit(ws[2]))),
-           w2 = expit(rnorm(n = n(), m = logit(ws[2]))),
-           w3 = expit(rnorm(n = n(), m = logit(ws[3]))),
+    mutate(w1 = expit(rnorm(n = n(), m = logit(ws[2]), sd = sd)),
+           w2 = expit(rnorm(n = n(), m = logit(ws[2]), sd = sd)),
+           w3 = expit(rnorm(n = n(), m = logit(ws[3]), sd = sd)),
            sum = w1 + w2 + w3) %>%
     transmute(w1 = w1/sum,
               w2 = w2/sum,
