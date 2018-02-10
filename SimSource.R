@@ -7,6 +7,7 @@ rm(list = ls())
 logit <- function(p) log(p/(1 - p))
 expit <- function(x) exp(x) / (exp(x) + 1)
 flip <- function(ps) rbinom(length(ps), 1, ps)
+stand <- function(x) (x - mean(x)) / (sum((x - mean(x))^2) / length(x))
 
 genWeights <- function(nS, max_schs = max(nS), ws = rep(.5, max_schs), sd = 1) {
 

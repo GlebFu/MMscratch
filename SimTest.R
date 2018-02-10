@@ -12,22 +12,38 @@ cor(ecls$Mob, ecls$PRE)
 # Conditions
 n.sch <- 100
 n.std <- 3000
-X.mean <- 0
-X.sd <- 1
+X.mean <- 60
+X.sd <- 10
 mobRate <- .25
 tripRate <- .375
-X.M.cor <- 0
+X.M.cor <- -.05
 
 e.mean <- 0
-e.sd <- 1
+e.sd <- sqrt(240)
 
-ICC <- .15
+# ICC <- .15
 
 u0.mean <- 0
-u0.sd <- sqrt((e.sd^2 * ICC) / (1 - ICC))
+# u0.sd <- sqrt((e.sd^2 * ICC) / (1 - ICC))
+u0.sd <- sqrt(46)
+ICC <- u0.sd^2 / (e.sd^2 + u0.sd^2)
 
-X.M.Bs <- round(gen_Mob_Coef(rnorm(100000, X.mean, X.sd), X.M.cor, mobRate), 2)
-RIM.Bs <- c(B0 = 0, X = 1, M = 1, M.S = 1, X.S = 1, u0 = 1, e = 1)
+# X.M.Bs <- round(gen_Mob_Coef(stand(rnorm(100000, X.mean, X.sd)), X.M.cor, mobRate), 2)
+X.M.Bs <- round(gen_Mob_Coef(stand(rnorm(100000, X.mean, X.sd)), X.M.cor, mobRate, range = c(-1, 1) * 200), 2)
+
+# stand <- function(x) (x - mean(x)) / (sum((x - mean(x))^2) / length(x))
+# 
+# data.frame(x = rnorm(100000, X.mean, X.sd)) %>%
+#   mutate(ps = expit(stand(x)))
+# 
+# data.frame(x = rnorm(100000, X.mean, X.sd),
+#            e = rnorm(100000)) %>%
+#   mutate(y1 = stand(x + 1 + e),
+#          y2 = x + 1 + e) %>%
+#   cor
+
+
+RIM.Bs <- c(B0 = 125, X = 1, M = .1, M.S = -2, X.S = .2, u0 = 1, e = 1)
 
 #----------------------
 # Generate Data
@@ -35,7 +51,8 @@ RIM.Bs <- c(B0 = 0, X = 1, M = 1, M.S = 1, X.S = 1, u0 = 1, e = 1)
 
 df <- data.frame(ID = 1:n.std) %>%
   mutate(X = rnorm(n.std, X.mean, X.sd),
-         PS.M = expit(X.M.Bs[1] + X.M.Bs[2] * X),
+         X.stand = stand(X),
+         PS.M = expit(X.M.Bs[1] + X.M.Bs[2] * X.stand),
          M = flip(PS.M),
          e = rnorm(n.std, e.mean, e.sd),
          nSchools = (M + flip(M*tripRate)) + 1,
@@ -43,7 +60,7 @@ df <- data.frame(ID = 1:n.std) %>%
          S2 = moveSch(S1, M, nSchools >= 2),
          S3 = moveSch(S2, M, nSchools >= 3))
 
-
+# cor(cbind(df$X, df$X.stand, df$M))
 #----------------------
 # Generate Weights
 #----------------------
@@ -53,7 +70,8 @@ df_r_uq <- cbind(df, isRandom = T, isEqual = F, genWeights(df$nSchools, ws = c(1
 df_f_eq <- cbind(df, isRandom = F, isEqual = T, genWeights(df$nSchools, sd = 0))
 df_f_uq <- cbind(df, isRandom = F, isEqual = F, genWeights(df$nSchools, ws = c(1/6, 1/6, 4/6), sd = 0))
 
-df <- rbind(df_r_eq, df_r_uq, df_f_eq, df_f_uq)
+df <- rbind(df_r_eq, df_r_uq, df_f_eq, df_f_uq) %>%
+  mutate(estimation = paste(ifelse(isRandom, "Random", "Fixed"), ifelse(isEqual, "Equal", "Unequal"), sep = "_"))
 
 #----------------------
 # Generate L2 random effects
@@ -113,6 +131,13 @@ Y_UQ <- as.numeric(t(RIM.Bs %*% X_UQ))
 df <- data.frame(Y_EQ, Y_UQ) %>%
   mutate(ID = 1:n()) %>%
   left_join(df)
+
+# df %>%
+#   select(Y_EQ, Y_UQ, ID, X, M, estimation, wMj, wXj) %>%
+#   gather(key = y_type, value = Y, Y_EQ, Y_UQ) %>%
+#   ggplot(aes(x = X, y = Y, color = M)) +
+#   geom_point(alpha = .5, size = .5) +
+#   facet_wrap(~ estimation)
 
 #----------------------
 # Test Analysis
@@ -221,67 +246,67 @@ res %>%
   ggplot(aes(x = Gen, y = estimates, color = Est)) +
   geom_point() +
   geom_hline(aes(yintercept = true)) + 
-  geom_hline(aes(yintercept = true + c(-.1, .1)), linetype = "dashed") +
+  geom_hline(aes(yintercept = true + true * c(-.1, .1)), linetype = "dashed") +
   facet_wrap(~ vars, scales = "free_y")
 
 #----------------------
 # Explore Data
 #----------------------
 
-# df %>%
-#   select(ID, w_type, S1:S3, w1:w3) %>%
-#   gather(key = "Var.Time", value = "value", S1:S3, w1:w3) %>%
-#   mutate(var = str_sub(Var.Time, end = 1),
-#        time = paste("t", str_sub(Var.Time, start = 2), sep = "")) %>%
-#   select(-Var.Time) %>%
-#   spread(key = var, value = value) %>%
-#   group_by(ID, w_type, S) %>%
-#   mutate(w2 = sum(w))
-# 
-# df %>%
-#   select(nSchools, w1:w3, w_type) %>%
-#   gather(key = time, value = weight, -nSchools, -w_type) %>%
-#   filter(weight != 0) %>%
-#   ggplot(aes(x = weight, color = time)) +
-#   geom_density() +
-#   facet_grid(w_type~nSchools)
-# 
-# df %>%
-#   select(w_type, nSchools, w1:w3) %>%
-#   gather(key = time, value = weight, -nSchools, -w_type) %>%
-#   filter(weight != 0) %>%
-#   group_by(w_type, nSchools, time) %>%
-#   summarise(m = mean(weight),
-#             s = sd(weight),
-#             n = n())
-# 
-# 
-# df %>%
-#   select(M, S1, S2, S3, w_type) %>%
-#   gather(key = Time, value = ID, -M, -w_type) %>%
-#   ggplot(aes(x = ID, fill = as.factor(M))) +
-#   geom_bar() +
-#   facet_wrap(w_type~Time)
-# 
-# set.seed(0115)
-# 
-# df %>%
-#   filter(M == 1) %>%
-#   group_by(w_type) %>%
-#   sample_n(20) %>% 
-#   select(ID, w1:w3, w_type) %>%
-#   gather(key = time, value = weight, w1:w3) %>%
-#   ungroup() %>%
-#   mutate(ID = as.factor(ID),
-#          time = forcats::fct_rev(time)) %>%
-#   ggplot(aes(x = ID, y = weight, fill = time)) +
-#   geom_bar(stat = "identity") +
-#   geom_hline(yintercept = c(1/3, 2/3, 1)) +
-#   coord_flip() +
-#   scale_fill_brewer(type = "qual", palette = 4, direction = -1) +
-#   facet_wrap(~ w_type, ncol = 1, scale = "free_y")
-# 
-# filter(df, M == 1) %>% head(30)
+df %>%
+  select(ID, estimation, S1:S3, w1:w3) %>%
+  gather(key = "Var.Time", value = "value", S1:S3, w1:w3) %>%
+  mutate(var = str_sub(Var.Time, end = 1),
+       time = paste("t", str_sub(Var.Time, start = 2), sep = "")) %>%
+  select(-Var.Time) %>%
+  spread(key = var, value = value) %>%
+  group_by(ID, estimation, S) %>%
+  mutate(w2 = sum(w))
+
+df %>%
+  select(nSchools, w1:w3, estimation) %>%
+  gather(key = time, value = weight, -nSchools, -estimation) %>%
+  filter(weight != 0) %>%
+  ggplot(aes(x = weight, color = time)) +
+  geom_density() +
+  facet_grid(estimation~nSchools)
+
+df %>%
+  select(estimation, nSchools, w1:w3) %>%
+  gather(key = time, value = weight, -nSchools, -estimation) %>%
+  filter(weight != 0) %>%
+  group_by(estimation, nSchools, time) %>%
+  summarise(m = mean(weight),
+            s = sd(weight),
+            n = n())
+
+
+df %>%
+  select(M, S1, S2, S3, estimation) %>%
+  filter(estimation == "Fixed_Equal") %>%
+  gather(key = Time, value = ID, -M, -estimation) %>%
+  ggplot(aes(x = ID, fill = as.factor(M))) +
+  geom_bar() +
+  facet_wrap(estimation~Time)
+
+set.seed(0115)
+
+df %>%
+  filter(M == 1, isRandom) %>%
+  group_by(estimation, nSchools) %>%
+  sample_n(20) %>%
+  select(ID, w1:w3, estimation, nSchools) %>%
+  gather(key = time, value = weight, w1:w3) %>%
+  ungroup() %>%
+  mutate(ID = as.factor(ID),
+         time = forcats::fct_rev(time)) %>%
+  ggplot(aes(x = ID, y = weight, fill = time)) +
+  geom_bar(stat = "identity") +
+  geom_hline(yintercept = c(1/3, 2/3, 1)) +
+  coord_flip() +
+  scale_fill_brewer(type = "qual", palette = 4, direction = -1) +
+  facet_wrap(nSchools ~ estimation, ncol = 2, scale = "free_y")
+
 
 
 
