@@ -44,6 +44,7 @@ X.M.Bs <- round(gen_Mob_Coef(stand(rnorm(100000, X.mean, X.sd)), X.M.cor, mobRat
 
 
 RIM.Bs <- c(B0 = 125, X = 1, M = .1, M.S = -2, X.S = .2, u0 = 1, e = 1)
+# RIM.Bs <- c(B0 = 1, X = 1, M = 1, M.S = -1, X.S = 1, u0 = 1, e = 1)
 
 #----------------------
 # Generate Data
@@ -219,10 +220,12 @@ RIM_UQ_F_UQ <- runMLwiN(Formula = RIM_UQ_FRM,
 getCoefs <- function(mdl) {
   estimates <- coef(mdl)
   estimates <- c(coef(mdl), ICC = estimates["RP2_var_Intercept"]/(estimates["RP1_var_Intercept"] + estimates["RP2_var_Intercept"]))
+  error <- c(sqrt(diag(mdl@FP.cov)), sqrt(diag(mdl@RP.cov)), NA)
   pars <- c(RIM.Bs[1:5], u0 = u0.sd^2, e = e.sd^2, ICC = ICC)
   data.frame(vars = names(pars), 
              true = pars, 
              estimates, 
+             error,
              EstEqual = ifelse(mdl@data$isEqual[1], "EQ", "UQ"), 
              EstRandom = ifelse(mdl@data$isRandom[1], "R", "F"),
              Gen = ifelse(str_detect(as.character(mdl@call)[2], "EQ"), "EQ", "UQ"),
@@ -231,23 +234,38 @@ getCoefs <- function(mdl) {
 }
 
 
-mods <- list(RIM_EQ_R_EQ, RIM_EQ_F_EQ, RIM_EQ_F_UQ, RIM_UQ_R_UQ, RIM_UQ_F_EQ, RIM_UQ_F_UQ)
+# getCoefs(mods[[1]])
+# sqrt(diag(mods[[1]]@FP.cov))
+# sqrt(diag(mods[[1]]@RP.cov))
 
-res <- bind_rows(lapply(mods, getCoefs)) %>%
+mods <- list(RIM_EQ_R_EQ, RIM_EQ_F_EQ, RIM_EQ_F_UQ, RIM_UQ_R_UQ, RIM_UQ_F_EQ, RIM_UQ_F_UQ)
+# save(mods, file = "realPars.rData")
+# save(mods, file = "simpPars.rData")
+
+# load(file = "realPars.rData")
+load(file = "simpPars.rData")
+
+res2 <- bind_rows(lapply(mods, getCoefs)) %>%
   mutate(Est = paste(EstEqual, EstRandom, sep = "_"))
 
-res %>%
-  ggplot(aes(x = vars, y = estimates, color = Est)) +
-  geom_point() +
-  geom_point(aes(y = true), shape = "x") + 
-  facet_wrap(~ Gen)
 
-res %>%
-  ggplot(aes(x = Gen, y = estimates, color = Est)) +
+
+# res %>%
+#   ggplot(aes(x = vars, y = estimates, color = Est)) +
+#   geom_point() +
+#   geom_point(aes(y = true), shape = "x", size = 4, color = "black") + 
+#   facet_wrap(~ Gen)
+
+res2 %>%
+  mutate(dist = estimates - true,
+         upper = error,
+         lower = -error) %>%
+  ggplot(aes(x = Est, y = estimates, color = Est)) +
   geom_point() +
-  geom_hline(aes(yintercept = true)) + 
-  geom_hline(aes(yintercept = true + true * c(-.1, .1)), linetype = "dashed") +
-  facet_wrap(~ vars, scales = "free_y")
+  geom_errorbar(aes(ymin = estimates - error, ymax = estimates + error)) +
+  # geom_hline(aes(yintercept = 0)) + 
+  # geom_hline(aes(yintercept = true + true * c(-.1, .1)), linetype = "dashed") +
+  facet_wrap(Gen ~ vars, scales = "free_y")
 
 #----------------------
 # Explore Data
