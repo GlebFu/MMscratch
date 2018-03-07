@@ -1,13 +1,15 @@
-library(dplyr)
-library(tidyr)
-library(ggplot2)
+library(R2MLwiN)
+library(tidyverse)
 
-rm(list = ls())
+options(MLwiN_path="C:/Program Files/MLwiN v2.36/")
+
+# rm(list = ls())
 
 logit <- function(p) log(p/(1 - p))
 expit <- function(x) exp(x) / (exp(x) + 1)
 flip <- function(ps) rbinom(length(ps), 1, ps)
 stand <- function(x) (x - mean(x)) / (sum((x - mean(x))^2) / length(x))
+GMC <- function(x) x - mean(x)
 
 genWeights <- function(nS, max_schs = max(nS), ws = rep(.5, max_schs), sd = 1) {
 
@@ -91,7 +93,7 @@ toMM <- function(data) {
   return(df)
 }
 
-gen_data <- function(n.students, X.mean, X.sd, X.M.Bs, e.mean, e.sd, tripleRate, n.schools, RIM.Bs) {
+gen_data <- function(n.students, X.mean, X.sd, X.M.Bs, e.mean, e.sd, tripleRate, n.schools, RIM.Bs, u0.mean, u0.sd, ICC) {
 
   # Base Data
   df <- data.frame(ID = 1:n.students) %>%
@@ -172,6 +174,10 @@ run_RIM <- function(data) {
   
   df_analysis <- data %>% 
     select(ID, isEqual, isRandom, mm1:ww3, Y_EQ, Y_UQ, X, M, wMj, wXj) %>%
+    mutate(X = GMC(X),
+           M = GMC(M),
+           wMj = GMC(wMj),
+           wXj = GMC(wXj)) %>%
     arrange(mm1, mm2, mm3)
   
   
@@ -215,19 +221,26 @@ run_RIM <- function(data) {
                           data = filter(df_analysis, !isEqual, !isRandom),
                           estoptions = list(EstM = 1, drop.data = F, mm = mm))
   
-  mods <- list(RIM_EQ_R_EQ, RIM_EQ_F_EQ, RIM_EQ_R_UQ, RIM_EQ_F_UQ, RIM_UQ_R_EQ, RIM_UQ_R_UQ, RIM_UQ_F_EQ, RIM_UQ_F_UQ)
+  mods <- list(RIM_EQ_R_EQ, 
+               RIM_EQ_F_EQ, 
+               RIM_EQ_R_UQ, 
+               RIM_EQ_F_UQ, 
+               RIM_UQ_R_EQ, 
+               RIM_UQ_R_UQ, 
+               RIM_UQ_F_EQ, 
+               RIM_UQ_F_UQ)
   
   return(mods)
 }
 
 
 
-getCoefs <- function(mdl) {
+getCoefs <- function(mdl, RIM.Bs, u0.sd, e.sd, ICC) {
   estimates <- coef(mdl)
   estimates <- c(coef(mdl), ICC = estimates["RP2_var_Intercept"]/(estimates["RP1_var_Intercept"] + estimates["RP2_var_Intercept"]))
   error <- c(sqrt(diag(mdl@FP.cov)), sqrt(diag(mdl@RP.cov)), NA)
   pars <- c(RIM.Bs[1:5], u0 = u0.sd^2, e = e.sd^2, ICC = ICC)
-  data.frame(vars = names(pars), 
+  data.frame(params = names(pars), 
              true = pars, 
              estimates, 
              error,
@@ -238,11 +251,12 @@ getCoefs <- function(mdl) {
              row.names = NULL)
 }
 
-run_sim <- function(n.students, X.mean, X.sd, X.M.Bs, e.mean, e.sd, tripleRate, n.schools, RIM.Bs) {
-  df <- gen_data(n.students, X.mean, X.sd, X.M.Bs, e.mean, e.sd, tripleRate, n.schools, RIM.Bs)
+run_sim <- function(n.students, X.mean, X.sd, X.M.Bs, e.mean, e.sd, tripleRate, n.schools, RIM.Bs, u0.mean, u0.sd, ICC) {
+  df <- gen_data(n.students, X.mean, X.sd, X.M.Bs, e.mean, e.sd, tripleRate, n.schools, RIM.Bs, u0.mean, u0.sd, ICC)
   
   mods <- run_RIM(df)
-  res <- bind_rows(lapply(mods, getCoefs)) %>%
+  
+  res <- bind_rows(lapply(mods, getCoefs, RIM.Bs, u0.sd, e.sd, ICC)) %>%
     mutate(Est = paste(EstEqual, EstRandom, sep = "_")) %>%
     gather(key = stat, value = value, estimates, error)
   
