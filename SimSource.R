@@ -54,14 +54,7 @@ moveSch <- function(prior.school, M, isMoving) {
   
 }
 
-gen_Mob_Coef <- function(X, X.M.cor, M.mean, range = c(-5, 5)) {
-  b1 <- uniroot(function(b1) mean(X.M.cor - cor(flip(expit(b1 * X)), X)), range)
-  b0 <- uniroot(function(b0) mean(expit(b0 + b1$root * X)) - M.mean,  range)
-  
-  Bs <- c(b0 = b0$root, b1 = b1$root)
-  
-  return(Bs)
-}
+
 
 toMM <- function(data) {
   ww <- data %>% 

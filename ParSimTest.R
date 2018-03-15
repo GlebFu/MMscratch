@@ -1,3 +1,5 @@
+library(MASS)
+
 rm(list = ls())
 
 source("SimSource.R")
@@ -32,27 +34,53 @@ driver <- function(reps, n.students, X.mean, X.sd, X.M.Bs, e.mean, e.sd, tripleR
 #----------------------
 # Conditions - Real
 #----------------------
-n.schools <- 100
-n.students <- 3000
+# n.schools <- 100
+# n.students <- 3000
+# 
+# mobRate <- .25
+# tripleRate <- .375
+# 
+# X.mean <- 60
+# X.sd <- 10
+# X.M.cor <- -.05
+# 
+# e.mean <- 0
+# e.sd <- sqrt(240)
+# 
+# ICC <- .15
+# 
+# u0.mean <- 0
+# u0.sd <- sqrt((e.sd^2 * ICC) / (1 - ICC))
+# 
+# X.M.Bs <- round(gen_Mob_Coef(stand(rnorm(100000, X.mean, X.sd)), X.M.cor, mobRate, range = c(-1, 1) * 200), 2)
+# 
+# RIM.Bs <- c(B0 = 125, X = 1, M = .1, M.S = -2, X.S = .2, u0 = 1, e = 1)
 
-mobRate <- .25
-tripleRate <- .375
+cond <- list(n.schools = 100,
+             n.students = 3000,
+             mobRate = .25,
+             tripleRate = .375,
+             X.mean = 60,
+             X.sd = 10,
+             X.M.cor = c(0, .5),
+             e.mean = 0,
+             e.sd = sqrt(240),
+             ICC = .15,
+             u0.mean = 0) %>%
+  expand.grid() %>%
+  mutate(u0.sd = sqrt((e.sd^2 * ICC) / (1 - ICC)))
 
-X.mean <- 60
-X.sd <- 10
-X.M.cor <- -.05
+cond %>%
+  select(X.mean, X.sd, X.M.cor, mobRate) 
 
-e.mean <- 0
-e.sd <- sqrt(240)
 
-ICC <- .15
+X.M.Bs = round(gen_Mob_Coef(stand(rnorm(100000, X.mean, X.sd)), X.M.cor, mobRate, range = c(-1, 1)), 2)
 
-u0.mean <- 0
-u0.sd <- sqrt((e.sd^2 * ICC) / (1 - ICC))
 
-X.M.Bs <- round(gen_Mob_Coef(stand(rnorm(100000, X.mean, X.sd)), X.M.cor, mobRate, range = c(-1, 1) * 200), 2)
+
 
 RIM.Bs <- c(B0 = 125, X = 1, M = .1, M.S = -2, X.S = .2, u0 = 1, e = 1)
+
 
 #----------------------
 # Sim - Real
@@ -68,7 +96,7 @@ cl <- makeCluster(no_cores)
 # seed <- runif(1,0,1)*10^8
 set.seed(42987117)
 
-reps = 10
+reps = 150
 
 runtime <- system.time(results <- parLapply(cl = cl,
                                             X = rep(reps, no_cores),
@@ -89,7 +117,7 @@ runtime <- system.time(results <- parLapply(cl = cl,
 stopCluster(cl)
 
 
-save(runtime, file = "Data/ParTimeReal.rdata")
+save(runtime, reps, no_cores, file = "Data/ParTimeReal.rdata")
 load("Data/ParTimeReal.rdata")
 
 avgRun <- runtime/reps/no_cores
@@ -97,14 +125,13 @@ avgRun * 1000 / 60 / 60 # Hours
 avgRun * 1000 / 60      # Minutes
 
 
-# results <- bind_rows(results) %>% data.frame
+results <- bind_rows(results) %>% data.frame
 
 save(results, file = "Results/results_real_rim.rdata")
 
 #----------------------
 # Conditions - clean
 #----------------------
-rm(list = ls())
 
 source("SimSource.R")
 
@@ -144,7 +171,7 @@ cl <- makeCluster(no_cores)
 # seed <- runif(1,0,1)*10^8
 set.seed(42987117)
 
-reps = 10
+reps = 150
 
 runtime <- system.time(results <- parLapply(cl = cl,
                                             X = rep(reps, no_cores),
@@ -165,7 +192,7 @@ runtime <- system.time(results <- parLapply(cl = cl,
 stopCluster(cl)
 
 
-save(runtime, file = "Data/ParTimeClean.rdata")
+save(runtime, reps, no_cores, file = "Data/ParTimeClean.rdata")
 load("Data/ParTimeClean.rdata")
 
 avgRun <- runtime/reps/no_cores
@@ -173,7 +200,7 @@ avgRun * 1000 / 60 / 60 # Hours
 avgRun * 1000 / 60      # Minutes
 
 
-# results <- bind_rows(results) %>% data.frame
+results <- bind_rows(results) %>% data.frame
 
 save(results, file = "Results/results_clean_rim.rdata")
 

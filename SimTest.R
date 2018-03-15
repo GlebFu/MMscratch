@@ -1,256 +1,70 @@
+library(MASS)
+
 rm(list = ls())
 
 source("SimSource.R")
 
-# ecls <- read.csv("eqData SCL.csv")
-# cor(ecls$Mob, ecls$PRE)
-
-#----------------------
-# Conditions
-#----------------------
-# n.schools <- 100
-# n.students <- 3000
-# 
-# mobRate <- .25
-# tripleRate <- .375
-# 
-# X.mean <- 60
-# X.sd <- 10
-# X.M.cor <- -.05
-# 
-# e.mean <- 0
-# e.sd <- sqrt(240)
-# 
-# ICC <- .15
-# 
-# u0.mean <- 0
-# u0.sd <- sqrt((e.sd^2 * ICC) / (1 - ICC))
-# # u0.sd <- sqrt(46)
-# 
-# # ICC <- u0.sd^2 / (e.sd^2 + u0.sd^2)
-# 
-# X.M.Bs <- round(gen_Mob_Coef(stand(rnorm(100000, X.mean, X.sd)), X.M.cor, mobRate, range = c(-1, 1) * 200), 2)
-# 
-# RIM.Bs <- c(B0 = 125, X = 1, M = .1, M.S = -2, X.S = .2, u0 = 1, e = 1)
-# # RIM.Bs <- c(B0 = 1, X = 1, M = 1, M.S = -1, X.S = 1, u0 = 1, e = 1)
-
-#----------------------
-# Testrun
-#----------------------
-
-# test_df <- gen_data(n.students, X.mean, X.sd, X.M.Bs, e.mean, e.sd, tripleRate, n.schools, RIM.Bs)
-# 
-# test_mods <- run_RIM(test_df)
-# test_res <- bind_rows(lapply(test_mods, getCoefs)) %>%
-#   mutate(Est = paste(EstEqual, EstRandom, sep = "_"))
-# 
-# test_res %>%
-#   ggplot(aes(x = vars, y = estimates, color = Est)) +
-#   geom_point() +
-#   geom_point(aes(y = true), shape = "x", size = 4, color = "black") +
-#   facet_wrap(~ Gen)
-# 
-# test_res %>%
-#   mutate(dist = estimates - true,
-#          upper = error,
-#          lower = -error) %>%
-#   ggplot(aes(x = Est, y = estimates, color = Est)) +
-#   geom_point() +
-#   geom_errorbar(aes(ymin = estimates - error, ymax = estimates + error)) +
-#   # geom_hline(aes(yintercept = 0)) + 
-#   # geom_hline(aes(yintercept = true + true * c(-.1, .1)), linetype = "dashed") +
-#   facet_wrap(Gen ~ vars, scales = "free_y")
-
-#----------------------
-# Conditions - real
-#----------------------
-# n.schools <- 100
-# n.students <- 3000
-# 
-# # n.schools <- 10
-# # n.students <- 1000
-# 
-# mobRate <- .25
-# tripleRate <- .375
-# 
-# X.mean <- 60
-# X.sd <- 10
-# X.M.cor <- -.05
-# 
-# e.mean <- 0
-# e.sd <- sqrt(240)
-# 
-# ICC <- .15
-# 
-# u0.mean <- 0
-# u0.sd <- sqrt((e.sd^2 * ICC) / (1 - ICC))
-# 
-# X.M.Bs <- round(gen_Mob_Coef(stand(rnorm(100000, X.mean, X.sd)), X.M.cor, mobRate, range = c(-1, 1) * 200), 2)
-# 
-# RIM.Bs <- c(B0 = 125, X = 1, M = .1, M.S = -2, X.S = .2, u0 = 1, e = 1)
-
-
-#----------------------
-# Conditions - clean
-#----------------------
-rm(list = ls())
-
-source("SimSource.R")
-
-# n.schools <- 100
-# n.students <- 3000
-
-n.schools <- 10
-n.students <- 100
-
-mobRate <- .25
-tripleRate <- .375
-
-X.mean <- 0
-X.sd <- 1
-X.M.cor <- 0
-
-e.mean <- 0
-e.sd <- sqrt(1)
-
-ICC <- .15
-
-u0.mean <- 0
-u0.sd <- sqrt((e.sd^2 * ICC) / (1 - ICC))
-
-X.M.Bs <- round(gen_Mob_Coef(stand(rnorm(100000, X.mean, X.sd)), X.M.cor, mobRate, range = c(-1, 1) * 5), 2)
-# undebug(gen_Mob_Coef)
-# undebug(flip)
-
-RIM.Bs <- c(B0 = 0, X = 1, M = 1, M.S = 1, X.S = 1, u0 = 1, e = 1)
-
-#----------------------
-# SimDriver
-#----------------------
-driver <- function(reps, n.students, X.mean, X.sd, X.M.Bs, e.mean, e.sd, tripleRate, n.schools, RIM.Bs, u0.mean, u0.sd, ICC) {
-  source("SimSource.R")
-  
-  replicate(reps, 
-            run_sim(n.students, 
-                    X.mean, 
-                    X.sd, 
-                    X.M.Bs, 
-                    e.mean, 
-                    e.sd, 
-                    tripleRate, 
-                    n.schools, 
-                    RIM.Bs,
-                    u0.mean,
-                    u0.sd,
-                    ICC), 
-            simplify = F)
+get_b1 <- function(X.mean, X.sd, X.M.cor, sds = 5) {
+  if(X.M.cor == 0) return(0)
+  x <- rnorm(10^5, X.mean, X.sd)
+  b1 <- uniroot(function(b1) cor(x, flip(expit(x * b1))) - X.M.cor, interval = X.mean + c(-1,1) * X.sd * sds)
+  return(round(b1$root, 3))
 }
 
-# driver(1,
-#        n.students,
-#        X.mean,
-#        X.sd,
-#        X.M.Bs,
-#        e.mean,
-#        e.sd,
-#        tripleRate,
-#        n.schools,
-#        RIM.Bs,
-#        u0.mean,
-#        u0.sd, ICC)
-
-
+get_b0 <- function(X.mean, X.sd, mobRate, b1, sds = 5) {
+  x <- rnorm(10^5, X.mean, X.sd)
+  b0 <- uniroot(function(b0) mobRate - mean(flip(expit(b0 + x * b1))), interval = X.mean + c(-1,1) * X.sd * sds)
+  return(round(b0$root, 3))
+}
 #----------------------
-# Run Sim
+# Conditions - Real
 #----------------------
+cond <- list(n.schools = 1000,
+             n.students = 30000,
+             mobRate = .25,
+             tripleRate = .375,
+             X.mean = 0,
+             X.sd = 1,
+             X.M.cor = (0:6)/10,
+             e.mean = 0,
+             e.sd = sqrt(1),
+             ICC = .5,
+             u0.mean = 0) %>%
+  expand.grid() %>%
+  mutate(u0.sd = sqrt((e.sd^2 * ICC) / (1 - ICC))) %>%
+  group_by(drop = 1:n()) %>%
+  mutate(b1 = get_b1(X.mean, X.sd, X.M.cor),
+         b0 = get_b0(X.mean, X.sd, mobRate, b1)) %>%
+  ungroup() %>%
+  select(-drop)
 
-# # seed <- runif(1,0,1)*10^8
-# set.seed(42987117)
-# 
-# reps = 1
-# 
-# runtime <- system.time(results <- driver(reps,
-#                                          n.students,
-#                                          X.mean,
-#                                          X.sd,
-#                                          X.M.Bs,
-#                                          e.mean,
-#                                          e.sd,
-#                                          tripleRate,
-#                                          n.schools,
-#                                          RIM.Bs,
-#                                          u0.mean,
-#                                          u0.sd, ICC))
-# 
-# # undebug(gen_data)
-# 
-# save(runtime, file = "Data/Sim Test Runtime.rdata")
-# load("Data/Sim Test Runtime.rdata")
-# 
-# avgRun <- runtime/reps
-# avgRun * 1000 / 60 / 60 # Hours
-# avgRun * 1000 / 60      # Minutes
-# 
-# 
-# results <- bind_rows(results) %>% data.frame 
-# 
-# save(results, file = "Results/results_clean_rim.rdata")
-
-#----------------------
-# Run Sim Parallel
-#----------------------
-library(parallel)
-
-# Calculate the number of cores
-no_cores <- detectCores() - 1
-
-# Initiate cluster
-cl <- makeCluster(no_cores)
-
-# clusterExport(cl, c("n.students",
-#                     "X.mean",
-#                     "X.sd",
-#                     "X.M.Bs",
-#                     "e.mean",
-#                     "e.sd",
-#                     "tripleRate",
-#                     "n.schools",
-#                     "RIM.Bs"))
-
-# seed <- runif(1,0,1)*10^8
-set.seed(42987117)
-
-reps = 10
-
-runtime <- system.time(results <- parLapply(cl = cl,
-                                            X = rep(1, no_cores),
-                                            fun = driver,
-                                            n.students,
-                                            X.mean,
-                                            X.sd,
-                                            X.M.Bs,
-                                            e.mean,
-                                            e.sd,
-                                            tripleRate,
-                                            n.schools,
-                                            RIM.Bs,
-                                            u0.mean,
-                                            u0.sd,
-                                            ICC))
-
-stopCluster(cl)
+cond
 
 
-save(runtime, file = "Data/Sim Test Runtime.rdata")
-load("Data/Sim Test Runtime.rdata")
+gen_temp <- function(conds) {
+  
+  # Base Data
+  df <- data.frame(ID = 1:conds$n.students) %>%
+    mutate(X = rnorm(conds$n.students, conds$X.mean, conds$X.sd),
+           X.stand = stand(X),
+           PS.M = expit(conds$b0 + conds$b1 * X.stand),
+           M = flip(PS.M))
+  return(cbind(conds, df))
+}
 
-avgRun <- runtime/reps/no_cores
-avgRun * 1000 / 60 / 60 # Hours
-avgRun * 1000 / 60      # Minutes
 
+test <- cond %>%
+  select(n.schools, n.students, X.mean, X.sd, b1, b0) %>%
+  rowwise %>% 
+  do( X = as_data_frame(.) ) %>% 
+  ungroup
 
-results <- bind_rows(results) %>% data.frame
+results <- test %>%
+  mutate(result = map(X, gen_temp)) %>%
+  select(-X) %>%
+  unnest
 
-save(results, file = "Results/results_clean_rim.rdata")
-
+results %>%
+  group_by(b1,b0) %>%
+  summarise(cor(X, M))
 
