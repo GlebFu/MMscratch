@@ -5,12 +5,21 @@ options(MLwiN_path="C:/Program Files/MLwiN v2.36/")
 
 # rm(list = ls())
 
+#----------------------
+# UTILITY FUNCTIONS
+#----------------------
+
 logit <- function(p) log(p/(1 - p))
 expit <- function(x) exp(x) / (exp(x) + 1)
 flip <- function(ps) rbinom(length(ps), 1, ps)
 stand <- function(x) (x - mean(x)) / (sum((x - mean(x))^2) / length(x))
 GMC <- function(x) x - mean(x)
 
+#----------------------
+# DATA GENERATION FUNCTIONS
+#----------------------
+
+# GENERATE WEIGHTS
 genWeights <- function(nS, max_schs = max(nS), ws = rep(.5, max_schs), sd = 1) {
 
   w <- data.frame(matrix(0, length(nS), max_schs))
@@ -34,6 +43,7 @@ genWeights <- function(nS, max_schs = max(nS), ws = rep(.5, max_schs), sd = 1) {
   return(w)
 }
 
+# ASSIGN NEW SCHOOLS TO MOBILE STUDENTS
 moveSch <- function(prior.school, M, isMoving) {
   sProbs <- data.frame(prior.school, M) %>%
     group_by(prior.school) %>%
@@ -54,8 +64,7 @@ moveSch <- function(prior.school, M, isMoving) {
   
 }
 
-
-
+# REFORMAT DATA FOR MULTIPLE MEMBERSHIP ANALYSIS
 toMM <- function(data) {
   ww <- data %>% 
     select(ID, w1:w3, estimation) %>%
@@ -86,34 +95,25 @@ toMM <- function(data) {
   return(df)
 }
 
-gen_data <- function(n.students, X.mean, X.sd, X.M.Bs, e.mean, e.sd, tripleRate, n.schools, RIM.Bs, u0.mean, u0.sd, ICC) {
+# GENERATE LEVEL 1 DATA 
+gen_L1 <- function(n = 1000, X_PS.cor = .5, X.m = 0, X.sd = 1, M.m = .25, e.m = 0, e.sd = 1, tripleRate = .375) {
+  vars <- mvrnorm(n = n, mu = c(X.m, 0), Sigma = matrix(c(X.sd, X_PS.cor, X_PS.cor, 1), 2, 2), empirical = T)
+  
+  data.frame(X = vars[,1],
+             p_M = pnorm(vars[,2])) %>%
+    arrange(p_M) %>%
+    mutate(rank = n():1,
+           M = as.numeric(rank <= n() * M.m)) %>%
+    select(X, p_M, M) %>%
+    mutate(ID = 1:n(),
+           e = rnorm(n(), e.m, e.sd),
+           nSchools = (M + flip(M*tripleRate)) + 1)
+}
 
-  # Base Data
-  df <- data.frame(ID = 1:n.students) %>%
-    mutate(X = rnorm(n.students, X.mean, X.sd),
-           X.stand = stand(X),
-           PS.M = expit(X.M.Bs[1] + X.M.Bs[2] * X.stand),
-           M = flip(PS.M),
-           e = rnorm(n.students, e.mean, e.sd),
-           nSchools = (M + flip(M*tripleRate)) + 1,
-           S1 = sample(1:n.schools, n.students, replace = T),
-           S2 = moveSch(S1, M, nSchools >= 2),
-           S3 = moveSch(S2, M, nSchools >= 3))
-  
-  
-  # Generate Weights
-  df_r_eq <- cbind(df, isRandom = T, isEqual = T, genWeights(df$nSchools))
-  df_r_uq <- cbind(df, isRandom = T, isEqual = F, genWeights(df$nSchools, ws = c(1/6, 1/6, 4/6)))
-  df_f_eq <- cbind(df, isRandom = F, isEqual = T, genWeights(df$nSchools, sd = 0))
-  df_f_uq <- cbind(df, isRandom = F, isEqual = F, genWeights(df$nSchools, ws = c(1/6, 1/6, 4/6), sd = 0))
-  
-  df <- rbind(df_r_eq, df_r_uq, df_f_eq, df_f_uq) %>%
-    mutate(estimation = paste(ifelse(isRandom, "Random", "Fixed"), ifelse(isEqual, "Equal", "Unequal"), sep = "_"))
-  
-
+gen_L2 <- function(n.schools, u0.m, u0.sd, df) {
   # Generate L2 random effects
   df_sch <- data.frame(SID = 1:n.schools) %>%
-    mutate(u0 = rnorm(n.schools, u0.mean, u0.sd))
+    mutate(u0 = rnorm(n.schools, u0.m, u0.sd))
   
   
   # Generate weighted L2 predictors 
@@ -126,6 +126,7 @@ gen_data <- function(n.students, X.mean, X.sd, X.M.Bs, e.mean, e.sd, tripleRate,
     ungroup() %>%
     left_join(df_sch)
   
+  # Pull L2 variables from time 1 for each student's current school
   df <- df %>%
     left_join(filter(df_sch, Time == "S1") %>% select(-Time),
               suffix = c("", ".S1"),
@@ -137,93 +138,111 @@ gen_data <- function(n.students, X.mean, X.sd, X.M.Bs, e.mean, e.sd, tripleRate,
               suffix = c("", ".S3"),
               by = c("S3" = "SID"))
   
-  df <- df %>%
+  
+  # Generate combined and weighted L2 variables
+  df %>%
     mutate(wMj = (w1 * M.S1 + w2 * M.S2 + w3 * M.S3),
            wXj = (w1 * X.S1 + w2 * X.S2 + w3 * X.S3),
            w.u0 = (w1 * u0 + w2 * u0.S2 + w3 * u0.S3))
   
+}
 
-  # Generate Y RIM
-  RIM_form <- ~ 1 + X + M + wMj + wXj + w.u0 + e
+
+# GENERATE RESPONSES
+gen_Y <- function(genMod, df) {
+
+  # Generate responses given true weights are equal
+  X_EQ <- t(model.matrix(genMod$frm, filter(df, isEqual, isRandom) %>% arrange(ID)))
   
-  X_EQ <- t(model.matrix(RIM_form, filter(df, isEqual, isRandom) %>% arrange(ID)))
+  Y_EQ <- as.numeric(t(genMod$Bs %*% X_EQ))
   
-  Y_EQ <- as.numeric(t(RIM.Bs %*% X_EQ))
+  # Generate respoesns given true weights are unequal
+  X_UQ <- t(model.matrix(genMod$frm, filter(df, !isEqual, isRandom) %>% arrange(ID)))
   
-  X_UQ <- t(model.matrix(RIM_form, filter(df, !isEqual, isRandom) %>% arrange(ID)))
+  Y_UQ <- as.numeric(t(genMod$Bs %*% X_UQ))
   
-  Y_UQ <- as.numeric(t(RIM.Bs %*% X_UQ))
-  
-  df <- data.frame(Y_EQ, Y_UQ) %>%
+  data.frame(Y_EQ, Y_UQ) %>%
     mutate(ID = 1:n()) %>%
     left_join(df)
+}
+
+# DATA GENERATION DRIVER
+gen_data <- function(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate, n.schools, u0.m, u0.sd, genMod) {
   
+  # Generate Level 1 Data
+  df <- gen_L1(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate)
+  
+  # Generate School Assignments
+  df <- df %>%
+    mutate(S1 = sample(1:n.schools, n.students, replace = T),
+           S2 = moveSch(S1, M, nSchools >= 2),
+           S3 = moveSch(S2, M, nSchools >= 3))
+           
+  # Generate Random Weights
+  df_r_eq <- cbind(df, isRandom = T, isEqual = T, genWeights(df$nSchools))
+  df_r_uq <- cbind(df, isRandom = T, isEqual = F, genWeights(df$nSchools, ws = c(1/6, 1/6, 4/6)))
+  
+  # Generate Fixed Weights (sd = 0)
+  df_f_eq <- cbind(df, isRandom = F, isEqual = T, genWeights(df$nSchools, sd = 0))
+  df_f_uq <- cbind(df, isRandom = F, isEqual = F, genWeights(df$nSchools, ws = c(1/6, 1/6, 4/6), sd = 0))
+  
+  df <- rbind(df_r_eq, df_r_uq, df_f_eq, df_f_uq) %>%
+    mutate(estimation = paste(ifelse(isRandom, "Random", "Fixed"), ifelse(isEqual, "Equal", "Unequal"), sep = "_"))
+  
+  # Generate L2 Variables
+  df <- gen_L2(n.schools, u0.m, u0.sd, df)
+
+  df <- gen_Y(genMod, df)
+
+
   df <- toMM(df)
   
   return(df)
 }
 
-run_RIM <- function(data) {
+# gm <- list(frm = ~ 1 + X + M + wMj + wXj + w.u0 + e,
+#      Bs = c(1, 1, 1, 1, 1, 1, 1))
+# 
+# 
+gen_data(n.students = 100,
+         X_PS.cor = .5,
+         X.m = 0,
+         X.sd = 1,
+         M.m = .25,
+         e.m = 0,
+         e.sd = 1,
+         tripleRate = .375,
+         n.schools = 10,
+         u0.m = 0,
+         u0.sd = 1,
+         genMod = gm) -> test
+
+
+
+
+
+run_RIM <- function(df, frm) {
   
-  df_analysis <- data %>% 
+  runMM <- function(df, frm) {
+    frm <- Y ~ 1 + X + M + wMj + wXj + (1 | mm1) + (1 | ID)
+    
+    mm <- list(list(mmvar = list("mm1", "mm2", "mm3"),
+                    weights = list("ww1", "ww2", "ww3")),
+               NA)
+    
+    runMLwiN(Formula = frm,
+             data = df,
+             estoptions = list(EstM = 1, drop.data = F, mm = mm))
+  }
+  
+  test %>% 
     select(ID, isEqual, isRandom, mm1:ww3, Y_EQ, Y_UQ, X, M, wMj, wXj) %>%
-    mutate(X = GMC(X),
-           M = GMC(M),
-           wMj = GMC(wMj),
-           wXj = GMC(wXj)) %>%
-    arrange(mm1, mm2, mm3)
-  
-  
-  mm <- list(list(mmvar = list("mm1", "mm2", "mm3"),
-                  weights = list("ww1", "ww2", "ww3")),
-             NA)
-  
-  RIM_EQ_FRM <- Y_EQ ~ 1 + X + M + wMj + wXj + (1 | mm1) + (1 | ID)
-  
-  RIM_EQ_R_EQ <- runMLwiN(Formula = RIM_EQ_FRM,
-                          data = filter(df_analysis, isEqual, isRandom),
-                          estoptions = list(EstM = 1, drop.data = F, mm = mm))
-  
-  RIM_EQ_F_EQ <- runMLwiN(Formula = RIM_EQ_FRM,
-                          data = filter(df_analysis, isEqual, !isRandom),
-                          estoptions = list(EstM = 1, drop.data = F, mm = mm))
-  
-  RIM_EQ_R_UQ <- runMLwiN(Formula = RIM_EQ_FRM,
-                          data = filter(df_analysis, !isEqual, isRandom),
-                          estoptions = list(EstM = 1, drop.data = F, mm = mm))
-  
-  RIM_EQ_F_UQ <- runMLwiN(Formula = RIM_EQ_FRM,
-                          data = filter(df_analysis, !isEqual, !isRandom),
-                          estoptions = list(EstM = 1, drop.data = F, mm = mm))
-  
-  RIM_UQ_FRM <- Y_UQ ~ 1 + X + M + wMj + wXj + (1 | mm1) + (1 | ID)
-  
-  RIM_UQ_R_EQ <- runMLwiN(Formula = RIM_UQ_FRM,
-                          data = filter(df_analysis, isEqual, isRandom),
-                          estoptions = list(EstM = 1, drop.data = F, mm = mm))
-  
-  RIM_UQ_R_UQ <- runMLwiN(Formula = RIM_UQ_FRM,
-                          data = filter(df_analysis, !isEqual, isRandom),
-                          estoptions = list(EstM = 1, drop.data = F, mm = mm))
-  
-  RIM_UQ_F_EQ <- runMLwiN(Formula = RIM_UQ_FRM,
-                          data = filter(df_analysis, isEqual, !isRandom),
-                          estoptions = list(EstM = 1, drop.data = F, mm = mm))
-  
-  RIM_UQ_F_UQ <- runMLwiN(Formula = RIM_UQ_FRM,
-                          data = filter(df_analysis, !isEqual, !isRandom),
-                          estoptions = list(EstM = 1, drop.data = F, mm = mm))
-  
-  mods <- list(RIM_EQ_R_EQ, 
-               RIM_EQ_F_EQ, 
-               RIM_EQ_R_UQ, 
-               RIM_EQ_F_UQ, 
-               RIM_UQ_R_EQ, 
-               RIM_UQ_R_UQ, 
-               RIM_UQ_F_EQ, 
-               RIM_UQ_F_UQ)
-  
-  return(mods)
+    arrange(mm1, mm2, mm3) %>%
+    gather(key = truth, value = Y, Y_EQ:Y_UQ) %>%
+    group_by(isEqual, isRandom, truth) %>%
+    nest() %>%
+    mutate(model = map(data, runMM))
+
 }
 
 
