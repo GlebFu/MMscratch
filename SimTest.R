@@ -1,70 +1,73 @@
 library(MASS)
+library(parallel)
 
 rm(list = ls())
 
 source("SimSource.R")
 
-get_b1 <- function(X.mean, X.sd, X.M.cor, sds = 5) {
-  if(X.M.cor == 0) return(0)
-  x <- rnorm(10^5, X.mean, X.sd)
-  b1 <- uniroot(function(b1) cor(x, flip(expit(x * b1))) - X.M.cor, interval = X.mean + c(-1,1) * X.sd * sds)
-  return(round(b1$root, 3))
-}
-
-get_b0 <- function(X.mean, X.sd, mobRate, b1, sds = 5) {
-  x <- rnorm(10^5, X.mean, X.sd)
-  b0 <- uniroot(function(b0) mobRate - mean(flip(expit(b0 + x * b1))), interval = X.mean + c(-1,1) * X.sd * sds)
-  return(round(b0$root, 3))
-}
 #----------------------
 # Conditions - Real
 #----------------------
-cond <- list(n.schools = 1000,
-             n.students = 30000,
-             mobRate = .25,
-             tripleRate = .375,
-             X.mean = 0,
+
+cond <- list(n.students = 3000,
+             X_PS.cor = c(0:9/10),
+             X.m = 0,
              X.sd = 1,
-             X.M.cor = (0:6)/10,
-             e.mean = 0,
-             e.sd = sqrt(1),
-             ICC = .5,
-             u0.mean = 0) %>%
-  expand.grid() %>%
-  mutate(u0.sd = sqrt((e.sd^2 * ICC) / (1 - ICC))) %>%
-  group_by(drop = 1:n()) %>%
-  mutate(b1 = get_b1(X.mean, X.sd, X.M.cor),
-         b0 = get_b0(X.mean, X.sd, mobRate, b1)) %>%
-  ungroup() %>%
-  select(-drop)
-
-cond
+             M.m = .25,
+             e.m = 0,
+             e.sd = 1,
+             tripleRate = .375,
+             n.schools = 100,
+             u0.m = 0,
+             u0.sd = 1) %>%
+  expand.grid()
 
 
-gen_temp <- function(conds) {
+sim_driver <- function(cond, reps) {
+  source("SimSource.R")
+  cond <- data.frame(t(cond))
+
+  results <- replicate(reps, 
+                       run_sim(cond$n.students, 
+                               cond$X_PS.cor, 
+                               cond$X.m, 
+                               cond$X.sd, 
+                               cond$M.m, 
+                               cond$e.m, 
+                               cond$e.sd, 
+                               cond$tripleRate, 
+                               cond$n.schools, 
+                               cond$u0.m, 
+                               cond$u0.sd, 
+                               cond$genMod), 
+                       simplify = F) %>%
+    bind_rows() %>% 
+    data.frame()  %>% 
+    cbind(cond)
   
-  # Base Data
-  df <- data.frame(ID = 1:conds$n.students) %>%
-    mutate(X = rnorm(conds$n.students, conds$X.mean, conds$X.sd),
-           X.stand = stand(X),
-           PS.M = expit(conds$b0 + conds$b1 * X.stand),
-           M = flip(PS.M))
-  return(cbind(conds, df))
+  return(results)
+
 }
 
+# Calculate the number of cores
+no_cores <- detectCores() - 1
 
-test <- cond %>%
-  select(n.schools, n.students, X.mean, X.sd, b1, b0) %>%
-  rowwise %>% 
-  do( X = as_data_frame(.) ) %>% 
-  ungroup
+# Initiate cluster
+cl <- makeCluster(no_cores)
 
-results <- test %>%
-  mutate(result = map(X, gen_temp)) %>%
-  select(-X) %>%
-  unnest
+# seed <- runif(1,0,1)*10^8
+set.seed(42987117)
 
-results %>%
-  group_by(b1,b0) %>%
-  summarise(cor(X, M))
+reps <- 10
 
+runtime <- system.time(results <- parApply(cl, cond, 1, sim_driver, reps))
+
+stopCluster(cl)
+
+
+save(runtime, reps, no_cores, file = "Data/ParTimeClean.rdata")
+load("Data/ParTimeClean.rdata")
+
+avgRun <- runtime/reps/no_cores
+avgRun * 1000 / 60 / 60 # Hours
+avgRun * 1000 / 60      # Minutes

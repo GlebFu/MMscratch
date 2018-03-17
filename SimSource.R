@@ -202,29 +202,26 @@ gen_data <- function(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate
 
 # gm <- list(frm = ~ 1 + X + M + wMj + wXj + w.u0 + e,
 #      Bs = c(1, 1, 1, 1, 1, 1, 1))
-# 
-# 
-gen_data(n.students = 100,
-         X_PS.cor = .5,
-         X.m = 0,
-         X.sd = 1,
-         M.m = .25,
-         e.m = 0,
-         e.sd = 1,
-         tripleRate = .375,
-         n.schools = 10,
-         u0.m = 0,
-         u0.sd = 1,
-         genMod = gm) -> test
 
 
+# gen_data(n.students = 100,
+#          X_PS.cor = .5,
+#          X.m = 0,
+#          X.sd = 1,
+#          M.m = .25,
+#          e.m = 0,
+#          e.sd = 1,
+#          tripleRate = .375,
+#          n.schools = 10,
+#          u0.m = 0,
+#          u0.sd = 1,
+#          genMod = gm) -> test
 
 
-
-run_RIM <- function(df, frm) {
+run_estimation <- function(df, frm) {
   
-  runMM <- function(df, frm) {
-    frm <- Y ~ 1 + X + M + wMj + wXj + (1 | mm1) + (1 | ID)
+  runMM <- function(df) {
+    # frm <- Y ~ 1 + X + M + wMj + wXj + (1 | mm1) + (1 | ID)
     
     mm <- list(list(mmvar = list("mm1", "mm2", "mm3"),
                     weights = list("ww1", "ww2", "ww3")),
@@ -235,7 +232,7 @@ run_RIM <- function(df, frm) {
              estoptions = list(EstM = 1, drop.data = F, mm = mm))
   }
   
-  test %>% 
+  df %>% 
     select(ID, isEqual, isRandom, mm1:ww3, Y_EQ, Y_UQ, X, M, wMj, wXj) %>%
     arrange(mm1, mm2, mm3) %>%
     gather(key = truth, value = Y, Y_EQ:Y_UQ) %>%
@@ -245,34 +242,50 @@ run_RIM <- function(df, frm) {
 
 }
 
+# test <- test %>%
+#   run_estimation( Y ~ 1 + X + M + wMj + wXj + (1 | mm1) + (1 | ID))
 
-
-getCoefs <- function(mdl, RIM.Bs, u0.sd, e.sd, ICC) {
+getCoefs <- function(mdl) {
   estimates <- coef(mdl)
-  estimates <- c(coef(mdl), ICC = estimates["RP2_var_Intercept"]/(estimates["RP1_var_Intercept"] + estimates["RP2_var_Intercept"]))
-  error <- c(sqrt(diag(mdl@FP.cov)), sqrt(diag(mdl@RP.cov)), NA)
-  pars <- c(RIM.Bs[1:5], u0 = u0.sd^2, e = e.sd^2, ICC = ICC)
-  data.frame(params = names(pars), 
-             true = pars, 
-             estimates, 
-             error,
-             EstEqual = ifelse(mdl@data$isEqual[1], "EQ", "UQ"), 
-             EstRandom = ifelse(mdl@data$isRandom[1], "R", "F"),
-             Gen = ifelse(str_detect(as.character(mdl@call)[2], "EQ"), "EQ", "UQ"),
-             stringsAsFactors = F,
-             row.names = NULL)
+  # estimates <- c(coef(mdl), ICC = estimates["RP2_var_Intercept"]/(estimates["RP1_var_Intercept"] + estimates["RP2_var_Intercept"]))
+  error <- c(sqrt(diag(mdl@FP.cov)), sqrt(diag(mdl@RP.cov)))
+  data.frame(stat = c("Estimate", "Error"), rbind(estimates, error))
 }
 
-run_sim <- function(n.students, X.mean, X.sd, X.M.Bs, e.mean, e.sd, tripleRate, n.schools, RIM.Bs, u0.mean, u0.sd, ICC) {
-  df <- gen_data(n.students, X.mean, X.sd, X.M.Bs, e.mean, e.sd, tripleRate, n.schools, RIM.Bs, u0.mean, u0.sd, ICC)
+# test2 <- test %>%
+#   mutate(coefs = map(model, getCoefs)) %>%
+#   select(-data, -model) %>%
+#   unnest(coefs)
+
+
+run_sim <- function(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate, n.schools, u0.m, u0.sd, genMod) {
   
-  mods <- run_RIM(df)
+  genMod <- list(frm = ~ 1 + X + M + wMj + wXj + w.u0 + e,
+             Bs = c(1, 1, 1, 1, 1, 1, 1))
   
-  res <- bind_rows(lapply(mods, getCoefs, RIM.Bs, u0.sd, e.sd, ICC)) %>%
-    mutate(Est = paste(EstEqual, EstRandom, sep = "_")) %>%
-    gather(key = stat, value = value, estimates, error)
+  df <- gen_data(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate, n.schools, u0.m, u0.sd, genMod)
+  
+  mods <- df %>%
+    run_estimation( Y ~ 1 + X + M + wMj + wXj + (1 | mm1) + (1 | ID))
+  
+  res <- mods %>%
+    mutate(coefs = map(model, getCoefs)) %>%
+    select(-data, -model) %>%
+    unnest(coefs)
+  
   
   return(res)
   
 }
 
+# run_sim(n.students = 100,
+#          X_PS.cor = .5,
+#          X.m = 0,
+#          X.sd = 1,
+#          M.m = .25,
+#          e.m = 0,
+#          e.sd = 1,
+#          tripleRate = .375,
+#          n.schools = 10,
+#          u0.m = 0,
+#          u0.sd = 1) -> test
