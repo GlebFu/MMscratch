@@ -58,7 +58,7 @@ cl <- makeCluster(no_cores)
 # seed <- runif(1,0,1)*10^8
 set.seed(42987117)
 
-reps <- 10
+reps <- 1000
 
 runtime <- system.time(results <- parApply(cl, cond, 1, sim_driver, reps))
 
@@ -71,3 +71,5 @@ load("Data/ParTimeClean.rdata")
 avgRun <- runtime/reps/no_cores
 avgRun * 1000 / 60 / 60 # Hours
 avgRun * 1000 / 60      # Minutes
+
+save(results, file = "Results/clean_RIM_1000.rdata")

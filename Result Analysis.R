@@ -3,10 +3,10 @@ library(tidyverse)
 rm(list = ls())
 
 # load("Results/results_real_rim.rdata")
-load("Results/results_clean_rim.rdata")
+# load("Results/results_clean_rim.rdata")
+load("Results/clean_RIM_100.rdata")
 
-
-head(results)
+results <- bind_rows(results)
 
 sd <- results %>%
   filter(stat == "error") %>%
