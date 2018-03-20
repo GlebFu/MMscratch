@@ -23,11 +23,12 @@ cond <- list(n.students = 3000,
   expand.grid()
 
 
+
 sim_driver <- function(cond, reps) {
   source("SimSource.R")
   cond <- data.frame(t(cond))
 
-  results <- replicate(reps, 
+  results <- replicate(cond$reps, 
                        run_sim(cond$n.students, 
                                cond$X_PS.cor, 
                                cond$X.m, 
@@ -42,15 +43,22 @@ sim_driver <- function(cond, reps) {
                                cond$genMod), 
                        simplify = F) %>%
     bind_rows() %>% 
-    data.frame()  %>% 
-    cbind(cond)
+    data.frame()
   
   return(results)
 
 }
 
 # Calculate the number of cores
+
+
 no_cores <- detectCores() - 1
+
+cond <- bind_rows(replicate(no_cores, cond, simplify = FALSE))
+
+minreps <- 1
+reps <- (minreps + (no_cores - minreps %% no_cores)) / no_cores
+cond$reps <- reps
 
 # Initiate cluster
 cl <- makeCluster(no_cores)
@@ -58,18 +66,17 @@ cl <- makeCluster(no_cores)
 # seed <- runif(1,0,1)*10^8
 set.seed(42987117)
 
-reps <- 1000
 
-runtime <- system.time(results <- parApply(cl, cond, 1, sim_driver, reps))
+runtime <- system.time(results <- parApply(cl, cond, 1, sim_driver))
 
 stopCluster(cl)
 
 
-save(runtime, reps, no_cores, file = "Data/ParTimeClean.rdata")
-load("Data/ParTimeClean.rdata")
+save(runtime, reps, no_cores, file = "Data/ParTimeClean200.rdata")
+load("Data/ParTimeClean200.rdata")
 
-avgRun <- runtime/reps/no_cores
-avgRun * 1000 / 60 / 60 # Hours
-avgRun * 1000 / 60      # Minutes
+avgRun <- runtime/ (reps * no_cores)
+round(avgRun * 200 / 60 / 60, 2) # Hours
+round(avgRun * 200 / 60, 2)      # Minutes
 
-save(results, file = "Results/clean_RIM_1000.rdata")
+save(results, file = "Results/clean_RIM_200.rdata")
