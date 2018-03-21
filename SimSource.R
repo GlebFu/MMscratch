@@ -167,7 +167,7 @@ gen_Y <- function(genMod, df) {
 }
 
 # DATA GENERATION DRIVER
-gen_data <- function(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate, n.schools, u0.m, u0.sd, genMod) {
+gen_data <- function(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate, n.schools, u0.m, u0.sd, genMod, gmc = T) {
   
   # Generate Level 1 Data
   df <- gen_L1(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate)
@@ -193,12 +193,13 @@ gen_data <- function(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate
   df <- gen_L2(n.schools, u0.m, u0.sd, df)
   
   # Grand Mean Centering
-  df <- df %>%
-    mutate(M = GMC(M),
-           X = GMC(X),
-           wMj = GMC(wMj),
-           wXj = GMC(wXj))
-
+  if(gmc) {
+    df <- df %>%
+      mutate(M = GMC(M),
+             X = GMC(X),
+             wMj = GMC(wMj),
+             wXj = GMC(wXj))
+  }
   # Generate Responses
   df <- gen_Y(genMod, df)
 
