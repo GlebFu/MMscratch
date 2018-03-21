@@ -29,7 +29,7 @@ test <- function(XPScor, X.m = 0, X.sd = 1, M.m = .5) {
     arrange(p) %>%
     mutate(rank = n():1,
            m_p_2 = as.numeric(rank <= n() * M.m)) %>%
-    select(-rank)
+    dplyr::select(-rank)
 }
 
 results <- expand.grid(list(XPScor = 0:10/10, X.m = c(-1, 0, 1), M.m = c(.25, .5, .75))) %>%
@@ -50,6 +50,8 @@ results %>%
   geom_point(alpha = .2) +
   # facet_grid(mtype~XPScor)
   facet_grid(XPScor~mtype)
+
+ggsave(file = "image2.jpeg")
 
 
 results %>%

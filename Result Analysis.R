@@ -4,63 +4,71 @@ rm(list = ls())
 
 # load("Results/results_real_rim.rdata")
 # load("Results/results_clean_rim.rdata")
-load("Results/clean_RIM_100.rdata")
+# load("Results/clean_RIM_100.rdata")
+load("Results/clean_RIM_200.rdata")
 
-results <- bind_rows(results)
+results <- bind_rows(results, .id = "X_PS_cor") %>%
+  as.tibble() %>%
+  mutate(X_PS_cor = (as.numeric(X_PS_cor) - 1) / 10)
 
-sd <- results %>%
-  filter(stat == "error") %>%
-  group_by(params,
-           Est,
+
+names(results) <- c("X_PS_cor", "Est_Equal", "Est_Random", "Gen", "Stat", 
+                    "Int", "FE_X", "FE_M", "FE_Mj", "FE_Xj", "RE_e", "RE_u")
+
+results <- results %>%
+  select(Est_Equal:RE_u, X_PS_cor) %>%
+  mutate(Est_Equal = ifelse(Est_Equal, "Equal", "Unequal"),
+         Est_Random = ifelse(Est_Random, "Random", "Fixed"),
+         Gen = ifelse(Gen == "Y_EQ", "Equal", "Unequal")) %>%
+  gather(key = "Parameter", value = "Value", Int:RE_u) %>%
+  mutate(Truth = ifelse(Parameter %in% c("RE_e", "RE_u"), 0, 1))
+  
+
+results %>%
+  group_by(Est_Equal,
+           Est_Random,
            Gen,
-           true) %>%
-  summarise(true.sd = mean(value))
+           Stat,
+           X_PS_cor,
+           Parameter) %>%
+  filter(Stat == "Error") %>%
+  arrange_all()
+
 
 #Galindo and Smith analysis
-GSres <- results %>%
-  filter(stat == "estimates") %>%
-  group_by(params,
-           Est,
+# GSres <- 
+  results %>%
+  group_by(Est_Equal,
+           Est_Random,
            Gen,
-           true) %>%
-  summarise(m.par = mean(value),
-            sd.par = sd(value)) %>%
-  left_join(sd) %>%
-  mutate(RPB = (m.par - true) / true,
-         RSEB = (sd.par - true.sd) / true.sd) %>%
-  select(params:Gen, RPB, RSEB) %>%
-  gather(key = measure, value = value, RPB, RSEB) %>%
-  mutate(sig = abs(value) < .05)
+           Stat,
+           X_PS_cor,
+           Parameter) %>%
+  summarise(m.par = mean(Value),
+            Truth = sd(Value))
+  
+  summarise(m.par = mean(Value),
+            Truth = ifelse(Stat == "Estimate", mean(Truth), sd(Value))) %>%
+  mutate(RPB = (m.par - Truth)) %>%
+  mutate(sig = abs(RPB) < .05)
 
 GSres %>%
-  filter(measure == "RPB") %>%
-  ggplot(aes(x = Est, y = value, color = Gen)) +
+  filter(Stat == "Estimate") %>%
+  ggplot(aes(x = X_PS_cor, y = RPB, color = Est_Equal, shape = Est_Random)) +
   geom_point(size = 2) +
   geom_hline(yintercept = 0) +
   geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
-  facet_wrap( ~ params, scales = "free_y") +
-  # scale_alpha_manual(values=c(1, .25), guide = F) + 
+  facet_grid(Gen ~ Parameter) +
   labs(title = "RPB")
 
-# GSres %>%
-#   filter(measure == "RPB") %>%
-#   ggplot(aes(x = Gen, y = value, color = Est, shape = Est)) +
-#   geom_point(size = 2) +
-#   geom_hline(yintercept = 0) +
-#   geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
-#   facet_wrap( ~ params, scales = "free_y") +
-#   scale_alpha_manual(values=c(1, .25), guide = F) + 
-#   labs(title = "RPB")
-
 GSres %>%
-  filter(measure == "RSEB") %>%
-  ggplot(aes(x = Est, y = value, color = Gen)) +
+  filter(Stat == "Error") %>%
+  ggplot(aes(x = X_PS_cor, y = RPB, color = Est_Equal, shape = Est_Random)) +
   geom_point(size = 2) +
   geom_hline(yintercept = 0) +
   geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
-  facet_wrap( ~ params, scales = "free_y") +
-  # scale_alpha_manual(values=c(1, .25), guide = F) + 
-  labs(title = "RSEB")
+  facet_grid(Gen ~ Parameter) +
+  labs(title = "RPB")
 
 #RMSE
 RMSE <- results %>%
