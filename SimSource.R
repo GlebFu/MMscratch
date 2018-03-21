@@ -191,9 +191,16 @@ gen_data <- function(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate
   
   # Generate L2 Variables
   df <- gen_L2(n.schools, u0.m, u0.sd, df)
+  
+  # Grand Mean Centering
+  df <- df %>%
+    mutate(M = GMC(M),
+           X = GMC(X),
+           wMj = GMC(wMj),
+           wXj = GMC(wXj))
 
+  # Generate Responses
   df <- gen_Y(genMod, df)
-
 
   df <- toMM(df)
   
