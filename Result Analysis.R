@@ -4,11 +4,15 @@ rm(list = ls())
 
 # load("Results/results_real_rim.rdata")
 # load("Results/results_clean_rim.rdata")
-load("Results/clean_RIM_100.rdata")
-# load("Results/clean_RIM_200.rdata")
+# load("Results/clean_RIM_100.rdata")
+load("Results/clean_RIM_100_GMC.rdata")
 
-results <- bind_rows(results) %>%
-  as.tibble()
+cond$ID <- as.character(1:nrow(cond))
+
+results <- bind_rows(results, .id = "ID") %>%
+  as.tibble() %>%
+  left_join(cond) %>%
+  select(-ID, -reps)
 
 
 names(results) <- c("Est_Equal", "Est_Random", "Gen", "Stat", 
@@ -16,7 +20,7 @@ names(results) <- c("Est_Equal", "Est_Random", "Gen", "Stat",
                     names(results)[12:22])
 
 results <- results %>%
-  select(Est_Equal:RE_u, X_PS.cor) %>%
+  select(Est_Equal:RE_u, X_PS.cor, M.m) %>%
   mutate(Est_Equal = ifelse(Est_Equal, "Equal", "Unequal"),
          Est_Random = ifelse(Est_Random, "Random", "Fixed"),
          Gen = ifelse(Gen == "Y_EQ", "Equal", "Unequal")) %>%
@@ -73,28 +77,31 @@ RMSE <- results %>%
            Gen,
            Stat,
            X_PS.cor,
+           M.m,
            Parameter) %>%
   mutate(Truth = ifelse(mean(Stat == "Estimate") == 1, mean(Truth), sd(Value))) %>%
   summarise(RMSE = sqrt(sum(Value - Truth)^2 / n()))
   
   
 RMSE %>%
-  filter(Stat == "Estimate") %>%
+  filter(Stat == "Estimate",
+         str_detect(Parameter, "RE")) %>%
   ggplot(aes(x = X_PS.cor, y = RMSE, color = Est_Random, shape = Est_Equal)) +
   geom_point(size = 2) +
   geom_hline(yintercept = 0, linetype = "dashed") +
   geom_hline(yintercept = c(.2, -.2), linetype = "dashed") +
-  facet_grid(Gen ~ Parameter) +
+  facet_grid(Gen ~ Parameter + M.m) +
   labs(title = "RMSE - Estimate")
 
 RMSE %>%
-  filter(Stat == "Error") %>%
+  filter(Stat == "Estimate",
+         str_detect(Parameter, "j")) %>%
   ggplot(aes(x = X_PS.cor, y = RMSE, color = Est_Random, shape = Est_Equal)) +
   geom_point(size = 2) +
   geom_hline(yintercept = 0, linetype = "dashed") +
   geom_hline(yintercept = c(.2, -.2), linetype = "dashed") +
-  facet_grid(Gen ~ Parameter) +
-  labs(title = "RMSE - Error")
+  facet_grid(Gen ~ Parameter + M.m) +
+  labs(title = "RMSE - Estimate")
 
 ####
 
@@ -104,20 +111,57 @@ test <- results %>%
            Gen,
            Stat,
            X_PS.cor,
+           M.m,
            Parameter) %>%
   mutate(Truth = ifelse(mean(Stat == "Estimate") == 1, mean(Truth), sd(Value)),
-         Value = Value - Truth)
-
-test %>%
-  ggplot(aes(x = Gen, y = Value, color = paste(Est_Random, Est_Equal))) +
-  geom_boxplot() +
-  facet_grid(Stat ~ Parameter) +
-  labs(title = "RMSE - Error")
+         Bias = (Value - Truth)/Truth)
 
 test %>%
   filter(Stat == "Estimate") %>%
-  ggplot(aes(x = Gen, y = abs(Value), color = paste(Est_Random, Est_Equal))) +
+  ggplot(aes(x = as.factor(M.m), y = Bias, linetype = Est_Random, color = Est_Equal)) +
   geom_boxplot() +
-  facet_grid(~Parameter) +
-  labs(title = "RMSE - Error")
+  facet_grid(Parameter ~ Gen) +
+  labs(title = "RMSE - Estimates") +
+  theme_bw()
+
+test %>%
+  filter(Stat == "Estimate",
+         str_detect(Parameter, "RE")) %>%
+  ggplot(aes(x = as.factor(M.m), y = Bias, linetype = Est_Random, color = Est_Equal)) +
+  geom_boxplot() +
+  facet_grid(Parameter ~ Gen) +
+  labs(title = "Bias - Random Effects") +
+  geom_hline(yintercept = 0) +
+  theme_bw()
+
+
+test %>%
+  filter(Stat == "Estimate",
+         str_detect(Parameter, "j")) %>%
+  ggplot(aes(x = as.factor(M.m), y = Bias, linetype = Est_Random, color = Est_Equal)) +
+  geom_boxplot() +
+  facet_grid(Parameter ~ Gen) +
+  labs(title = "Bias - Level 2 Coeficients") +
+  geom_hline(yintercept = 0) +
+  theme_bw()
+
+test %>%
+  filter(Stat == "Error",
+         str_detect(Parameter, "j")) %>%
+  ggplot(aes(x = as.factor(M.m), y = Bias, linetype = Est_Random, color = Est_Equal)) +
+  geom_boxplot() +
+  facet_grid(Parameter ~ Gen) +
+  labs(title = "Bias - Level 2 Coeficients") +
+  geom_hline(yintercept = 0) +
+  theme_bw()
   
+
+test %>%
+  filter(Stat == "Error",
+         str_detect(Parameter, "j")) %>%
+  ggplot(aes(x = as.factor(X_PS.cor), y = Bias, linetype = Est_Random, color = Est_Equal)) +
+  geom_boxplot() +
+  facet_grid(Parameter ~ Gen) +
+  labs(title = "Bias - Level 2 Coeficients") +
+  geom_hline(yintercept = 0) +
+  theme_bw()
