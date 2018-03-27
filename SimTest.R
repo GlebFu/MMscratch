@@ -1,4 +1,3 @@
-library(MASS)
 library(parallel)
 
 rm(list = ls())
@@ -8,6 +7,12 @@ source("SimSource.R")
 #----------------------
 # Conditions - Real
 #----------------------
+
+# ICC
+# e.sd <- 1
+# ICC <- .25
+# sqrt((e.sd^2 * ICC) / (1 - ICC))
+
 
 cond <- list(n.students = 3000,
              # X_PS.cor = c(0:9/10),
@@ -20,16 +25,21 @@ cond <- list(n.students = 3000,
              tripleRate = .375,
              n.schools = 100,
              u0.m = 0,
-             u0.sd = 1) %>%
-  expand.grid()
+             u0.sd = c(.42, .577),
+             gen_frm = list(~ 1 + X + M + wMj + wXj + w.u0 + e),
+             Bs = list(c(0, 1, 1, 1, 1, 1, 1),
+                       c(0, 1, 1, .5, .5, 1, 1)),
+             est_frm = list(Y ~ 1 + X + M + wMj + wXj + (1 | mm1) + (1 | ID))) %>%
+  expand.grid() %>%
+  mutate(ICC = u0.sd^2 / (u0.sd^2 + e.sd^2)) 
 
 
-
-sim_driver <- function(cond, reps) {
+sim_driver <- function(cond) {
   source("SimSource.R")
-  cond <- data.frame(t(cond))
+  # debug(gen_Y)
+  cond <- as.data.frame(t(cond))
 
-  results <- replicate(cond$reps, 
+  results <- replicate(as.integer(cond$reps), 
                        run_sim(cond$n.students, 
                                cond$X_PS.cor, 
                                cond$X.m, 
@@ -40,8 +50,10 @@ sim_driver <- function(cond, reps) {
                                cond$tripleRate, 
                                cond$n.schools, 
                                cond$u0.m, 
-                               cond$u0.sd, 
-                               cond$genMod), 
+                               cond$u0.sd,
+                               cond$gen_frm,
+                               cond$Bs,
+                               cond$est_frm), 
                        simplify = F) %>%
     bind_rows() %>% 
     data.frame()
@@ -51,13 +63,15 @@ sim_driver <- function(cond, reps) {
 }
 
 # Calculate the number of cores
-
+# cond$reps <- 1
+# sim_driver(cond[1,])
+# # undebug(sim_driver)
 
 no_cores <- detectCores() - 1
 
 cond <- bind_rows(replicate(no_cores, cond, simplify = FALSE))
 
-minreps <- 100
+minreps <- 1
 reps <- (minreps + (no_cores - minreps %% no_cores)) / no_cores
 cond$reps <- reps
 
@@ -68,18 +82,21 @@ cl <- makeCluster(no_cores)
 set.seed(42987117)
 
 
-runtime <- system.time(results <- parApply(cl, cond, 1, sim_driver))
+runtime <- system.time(results <- parApply(cl, cond[1:2,], 1, sim_driver))
 
 stopCluster(cl)
 
+results
 
-save(runtime, reps, no_cores, file = "Data/ParTimeClean100.rdata")
-load("Data/ParTimeClean100.rdata")
 
-avgRun <- runtime/ (reps * no_cores)
-round(avgRun * 200 / 60 / 60, 2) # Hours
-round(avgRun * 200 / 60, 2)      # Minutes
 
-save(results, cond, file = "Results/clean_RIM_100_GMC.rdata")
-
-load("Results/clean_RIM_100_GMC.rdata")
+# save(runtime, reps, no_cores, file = "Data/ParTimeClean100.rdata")
+# load("Data/ParTimeClean100.rdata")
+# 
+# avgRun <- runtime/ (reps * no_cores)
+# round(avgRun * 200 / 60 / 60, 2) # Hours
+# round(avgRun * 200 / 60, 2)      # Minutes
+# 
+# save(results, cond, file = "Results/clean_RIM_100_GMC.rdata")
+# 
+# load("Results/clean_RIM_100_GMC.rdata")

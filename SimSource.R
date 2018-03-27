@@ -97,7 +97,7 @@ toMM <- function(data) {
 
 # GENERATE LEVEL 1 DATA 
 gen_L1 <- function(n = 1000, X_PS.cor = .5, X.m = 0, X.sd = 1, M.m = .25, e.m = 0, e.sd = 1, tripleRate = .375) {
-  vars <- mvrnorm(n = n, mu = c(X.m, 0), Sigma = matrix(c(X.sd, X_PS.cor, X_PS.cor, 1), 2, 2), empirical = T)
+  vars <- MASS::mvrnorm(n = n, mu = c(X.m, 0), Sigma = matrix(c(X.sd, X_PS.cor, X_PS.cor, 1), 2, 2), empirical = T)
   
   data.frame(X = vars[,1],
              p_M = pnorm(vars[,2])) %>%
@@ -243,8 +243,8 @@ run_estimation <- function(df, frm) {
   df %>% 
     select(ID, isEqual, isRandom, mm1:ww3, Y_EQ, Y_UQ, X, M, wMj, wXj) %>%
     arrange(mm1, mm2, mm3) %>%
-    gather(key = truth, value = Y, Y_EQ:Y_UQ) %>%
-    group_by(isEqual, isRandom, truth) %>%
+    gather(key = Gen, value = Y, Y_EQ:Y_UQ) %>%
+    group_by(isEqual, isRandom, Gen) %>%
     nest() %>%
     mutate(model = map(data, runMM))
 
@@ -257,7 +257,13 @@ getCoefs <- function(mdl) {
   estimates <- coef(mdl)
   # estimates <- c(coef(mdl), ICC = estimates["RP2_var_Intercept"]/(estimates["RP1_var_Intercept"] + estimates["RP2_var_Intercept"]))
   error <- c(sqrt(diag(mdl@FP.cov)), sqrt(diag(mdl@RP.cov)))
-  data.frame(stat = c("Estimate", "Error"), rbind(estimates, error))
+  df <- data.frame(stat = c("Estimate", "Error"), rbind(estimates, error))
+  names(df) <- str_replace(names(df), "FP_", "FE_")
+  names(df) <- str_replace(names(df), "RP2_var_Intercept", "RE_u0j")
+  names(df) <- str_replace(names(df), "RP1_var_Intercept", "RE_ei")
+  names(df) <- str_replace(names(df), "Intercept", "Int")
+  
+  return(df)
 }
 
 # test2 <- test %>%
@@ -266,15 +272,15 @@ getCoefs <- function(mdl) {
 #   unnest(coefs)
 
 
-run_sim <- function(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate, n.schools, u0.m, u0.sd, genMod) {
+run_sim <- function(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate, n.schools, u0.m, u0.sd, gen_frm, Bs, est_frm) {
   
-  genMod <- list(frm = ~ 1 + X + M + wMj + wXj + w.u0 + e,
-             Bs = c(1, 1, 1, 1, 1, 1, 1))
+  genMod <- list(frm = gen_frm[[1]],
+             Bs = Bs[[1]])
   
   df <- gen_data(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate, n.schools, u0.m, u0.sd, genMod)
   
   mods <- df %>%
-    run_estimation( Y ~ 1 + X + M + wMj + wXj + (1 | mm1) + (1 | ID))
+    run_estimation(est_frm[[1]])
   
   res <- mods %>%
     mutate(coefs = map(model, getCoefs)) %>%
