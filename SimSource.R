@@ -274,13 +274,13 @@ getCoefs <- function(mdl) {
 
 run_sim <- function(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate, n.schools, u0.m, u0.sd, gen_frm, Bs, est_frm) {
   
-  genMod <- list(frm = gen_frm[[1]],
-             Bs = Bs[[1]])
+  genMod <- list(frm = gen_frm,
+             Bs = Bs)
   
   df <- gen_data(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate, n.schools, u0.m, u0.sd, genMod)
   
   mods <- df %>%
-    run_estimation(est_frm[[1]])
+    run_estimation(est_frm)
   
   res <- mods %>%
     mutate(coefs = map(model, getCoefs)) %>%
