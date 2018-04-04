@@ -1,4 +1,4 @@
-library(R2MLwiN)
+# library(R2MLwiN)
 library(tidyverse)
 
 options(MLwiN_path="C:/Program Files/MLwiN v2.36/")
@@ -167,7 +167,7 @@ gen_Y <- function(genMod, df) {
 }
 
 # DATA GENERATION DRIVER
-gen_data <- function(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate, n.schools, u0.m, u0.sd, genMod, gmc = T) {
+gen_data <- function(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate, n.schools, u0.m, u0.sd, genMod, gmc = T, w.sd = 1) {
   
   # Generate Level 1 Data
   df <- gen_L1(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate)
@@ -179,8 +179,8 @@ gen_data <- function(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate
            S3 = moveSch(S2, M, nSchools >= 3))
            
   # Generate Random Weights
-  df_r_eq <- cbind(df, isRandom = T, isEqual = T, genWeights(df$nSchools))
-  df_r_uq <- cbind(df, isRandom = T, isEqual = F, genWeights(df$nSchools, ws = c(1/6, 1/6, 4/6)))
+  df_r_eq <- cbind(df, isRandom = T, isEqual = T, genWeights(df$nSchools, sd = w.sd))
+  df_r_uq <- cbind(df, isRandom = T, isEqual = F, genWeights(df$nSchools, ws = c(1/6, 1/6, 4/6), sd = w.sd))
   
   # Generate Fixed Weights (sd = 0)
   df_f_eq <- cbind(df, isRandom = F, isEqual = T, genWeights(df$nSchools, sd = 0))
@@ -227,6 +227,7 @@ gen_data <- function(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate
 
 
 run_estimation <- function(df, frm) {
+  require(R2MLwiN)
   
   runMM <- function(df) {
     # frm <- Y ~ 1 + X + M + wMj + wXj + (1 | mm1) + (1 | ID)
@@ -272,12 +273,12 @@ getCoefs <- function(mdl) {
 #   unnest(coefs)
 
 
-run_sim <- function(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate, n.schools, u0.m, u0.sd, gen_frm, Bs, est_frm) {
+run_sim <- function(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate, n.schools, u0.m, u0.sd, gen_frm, Bs, est_frm, w.sd = 1) {
   
   genMod <- list(frm = gen_frm,
              Bs = Bs)
   
-  df <- gen_data(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate, n.schools, u0.m, u0.sd, genMod)
+  df <- gen_data(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate, n.schools, u0.m, u0.sd, genMod, w.sd)
   
   mods <- df %>%
     run_estimation(est_frm)
