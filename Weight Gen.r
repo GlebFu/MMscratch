@@ -1,7 +1,6 @@
 library(dplyr)
 library(tidyr)
 library(ggplot2)
-library(plot3D)
 
 rm(list = ls())
 

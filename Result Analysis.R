@@ -65,10 +65,10 @@ pull_results <- function(cond, res.df) {
   return(out.i)
 }
 
-cond <- read_csv("Results/2018-03-30/conditions.csv")[,-1]
+cond <- read_csv("Results/2018-04-04/conditions.csv")[,-1]
 
-res.files <- list.files(path = "Results/2018-03-30")[str_detect(list.files(path = "Results/2018-03-30"), "Results")]
-res.dirs <- paste("Results/2018-03-30/", res.files, sep = "")
+res.files <- list.files(path = "Results/2018-04-04")[str_detect(list.files(path = "Results/2018-04-04"), "Results")]
+res.dirs <- paste("Results/2018-04-04/", res.files, sep = "")
 res.df <- tibble(files = res.files, dirs = res.dirs) %>%
   mutate(cond = str_split(files, "-| ", simplify = T)[,1],
          part = str_split(files, "-| ", simplify = T)[,2])
@@ -77,11 +77,11 @@ res.df <- tibble(files = res.files, dirs = res.dirs) %>%
 
 cond.manipulated <- names((cond %>% mutate_all(as.factor) %>% sapply(function(x) length(levels(x))))[(cond %>% mutate_all(as.factor) %>% sapply(function(x) length(levels(x)))) > 1])
 
-# rm(list = "cond.manipulated", "res.dirs", "res.files")
+rm(list = "cond.manipulated", "res.dirs", "res.files")
 
-# out.i <- pull_results(cond, res.df)
-# 
-# save(out.i, file = "Results/Brief/out.rdata")
+out.i <- pull_results(cond, res.df)
+
+save(out.i, file = "Results/Brief/out.rdata")
 load("Results/Brief/out.rdata")
 
 results <- bind_rows(out.i) %>%

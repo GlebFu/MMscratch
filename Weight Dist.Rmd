@@ -121,10 +121,22 @@ Narrowing the distribution that we sample the weights from creates less overlap 
 df2 %>%
   select(ID, w1:w3, nSchools, M, isRandom, isEqual) %>%
   gather(key = time, value = weight, w1:w3) %>%
-  mutate(wType = paste(ifelse(isRandom, "Ran", "Fix"), ifelse(isEqual, "Eq", "Un"), sep = "_")) %>%
+  mutate(Generation = paste(ifelse(isRandom, "Random", "Fixed"), ifelse(isEqual, "Equal", "Unequal"), sep = " ")) %>%
   select(-isRandom, -isEqual) %>%
-  filter(str_detect(wType, "Ran")) %>%
-  ggplot(aes(x = weight, color = wType)) +
+  group_by(time, nSchools) %>%
+  filter(str_detect(Generation, "Random"),
+         sd(weight) != 0) %>%
+  ungroup() %>%
+  mutate(nSchools = paste("Attended", nSchools, "schools")) %>%
+  ggplot(aes(x = weight, color = Generation)) +
   geom_density() +
-  facet_grid(nSchools~time)
+  facet_grid(time~nSchools) +
+  theme_minimal() +
+  scale_color_brewer(type = "qual", palette = 2) +
+  labs(x = "Value", y = "Density") +
+  theme(legend.position = "bottom",
+        panel.spacing = unit(2, "lines"),
+        text = element_text(size=20))
+
+ggsave("Dist of Weights.jpg", dpi = 1000, width = 11, height = 8.5)
 ```
