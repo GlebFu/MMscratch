@@ -128,11 +128,12 @@ df2 %>%
          sd(weight) != 0) %>%
   ungroup() %>%
   mutate(nSchools = paste("Attended", nSchools, "schools")) %>%
-  ggplot(aes(x = weight, color = Generation)) +
-  geom_density() +
+  ggplot(aes(x = weight, color = Generation, fill = Generation)) +
+  geom_density(alpha = .5) +
   facet_grid(time~nSchools) +
   theme_minimal() +
   scale_color_brewer(type = "qual", palette = 2) +
+  scale_fill_brewer(type = "qual", palette = 2) +
   labs(x = "Value", y = "Density") +
   theme(legend.position = "bottom",
         panel.spacing = unit(2, "lines"),

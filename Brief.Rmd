@@ -30,6 +30,9 @@ results <- bind_rows(out.i) %>%
          ICC = round(ICC, 2))
 
 levels(results$Parameter) <- c("FE_Int", "FE_M", "FE_Mj", "FE_Xj", "FE_X", "RE_e", "RE_u")
+results$Parameter <- factor(results$Parameter, c("FE_Int", "FE_M", "FE_X", "FE_Mj", "FE_Xj", "RE_e", "RE_u"))
+
+
 levels(results$Bs) <- c("Weak L2", "Strong L2")
 
 
@@ -107,15 +110,23 @@ $\gamma_{M_j}$ displays substantial bias.
 
 ```{r, cache = T, echo = F}
 df_sum %>%
+  arrange(Parameter) %>%
   ggplot(aes(x = Gen, y = RPB, color = Est_Equal, linetype = Est_Random, fill = Correct)) +
   geom_boxplot() +
   geom_hline(yintercept = 0) +
   geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
   labs(title = "RPB - All Conditions by Parameter") +
   facet_wrap(~ Parameter, scales = "free_y") +
-  theme_bw() +
-  scale_fill_brewer(type = "seq", palette = 1) +
-  scale_color_brewer(type = "qual", palette = 2)
+  scale_fill_brewer(type = "seq", palette = 1, guide=FALSE) +
+  scale_color_brewer(type = "qual", palette = 2) +
+  theme_minimal() +
+  labs(x = "Generating Weights", y = "RPB") +
+  theme(legend.position = "bottom",
+        panel.spacing = unit(2, "lines"),
+        text = element_text(size=20),
+        legend.title = element_text(size=15)) +
+  guides(color = guide_legend(title = ""),
+         linetype = guide_legend(title = "Estimating Weights"))
 
 
 ```
