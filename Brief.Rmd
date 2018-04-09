@@ -80,8 +80,8 @@ levels(results$Bs) <- c("Weak L2", "Strong L2")
 There is some variation due to conditions but on average the different estimation methods do not seem to have much difference
 
 ```{r, cache = T, echo = F, fig.width=10, fig.height=7}
-# df_sum <- results %>% filter(stat == "Estimate")
-df_sum <- results %>% filter(stat == "Error")
+df_sum <- results %>% filter(stat == "Estimate")
+# df_sum <- results %>% filter(stat == "Error")
 
 df_sum %>%
   ggplot(aes(x = Gen, y = RPB, color = Est_Equal, linetype = Est_Random, fill = Correct)) +
