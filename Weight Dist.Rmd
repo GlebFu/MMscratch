@@ -139,5 +139,5 @@ df2 %>%
         panel.spacing = unit(2, "lines"),
         text = element_text(size=20))
 
-ggsave("Dist of Weights.jpg", dpi = 1000, width = 11, height = 8.5)
+ggsave("Figs/Dist of Weights.jpg", dpi = 1000, width = 11, height = 8.5)
 ```

@@ -91,11 +91,19 @@ df_sum %>%
   geom_boxplot() +
   geom_hline(yintercept = 0) +
   geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
-  labs(title = "RPB - All Conditions") +
-  theme_bw() +
-  scale_fill_brewer(type = "seq", palette = 1) +
-  scale_color_brewer(type = "qual", palette = 2)
+  # labs(title = "RPB - All Conditions") +
+  scale_fill_brewer(type = "seq", palette = 1, guide=FALSE) +
+  scale_color_brewer(type = "qual", palette = 2) +
+  theme_minimal() +
+  labs(x = "Generating Weights", y = "RPB") +
+  theme(legend.position = "right",
+        panel.spacing = unit(2, "lines"),
+        text = element_text(size=20),
+        legend.title = element_text(size=15)) +
+  guides(color = guide_legend(title = ""),
+         linetype = guide_legend(title = "Estimating Weights"))
 
+ggsave("Figs/RPB-All Cond.jpg", dpi = 1000, width = 11, height = 8.5)
 
 
 ```
@@ -115,20 +123,20 @@ df_sum %>%
   geom_boxplot() +
   geom_hline(yintercept = 0) +
   geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
-  labs(title = "RPB - All Conditions by Parameter") +
+  # labs(title = "RPB - All Conditions by Parameter") +
   facet_wrap(~ Parameter, scales = "free_y") +
   scale_fill_brewer(type = "seq", palette = 1, guide=FALSE) +
   scale_color_brewer(type = "qual", palette = 2) +
   theme_minimal() +
   labs(x = "Generating Weights", y = "RPB") +
-  theme(legend.position = "bottom",
+  theme(legend.position = "right",
         panel.spacing = unit(2, "lines"),
         text = element_text(size=20),
         legend.title = element_text(size=15)) +
   guides(color = guide_legend(title = ""),
          linetype = guide_legend(title = "Estimating Weights"))
 
-
+ggsave("Figs/RPB-Cond by Param.jpg", dpi = 1000, width = 11, height = 8.5)
 ```
 
 ### RPB for each parameter by $\rho_{X,M}$
@@ -137,20 +145,48 @@ Bizarre relationship between $\rho$ and $\gamma_{M_j}$ bias
 
 ```{r, cache = T, echo = F}
 
-df_sum2 <- df_sum %>% filter(Parameter %in% c("FE_Mj", "FE_Xj", "RE_e", "RE_u"))
+df_sum2 <- df_sum %>% filter(Parameter %in% c("FE_Mj", "FE_Xj", "RE_u"))
 
 df_sum2 %>%
   ggplot(aes(x = Gen, y = RPB, color = Est_Equal, linetype = Est_Random, fill = Correct)) +
   geom_boxplot() +
   geom_hline(yintercept = 0) +
   geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
-  labs(title = "RPB - X_M Cor by Parameter") +
+  # labs(title = "RPB - X_M Cor by Parameter") +
   facet_grid(Parameter ~ X_PS.cor) +
-  # facet_grid(Parameter ~ X_PS.cor) +
-  theme_bw() +
-  scale_fill_brewer(type = "seq", palette = 1) +
-  scale_color_brewer(type = "qual", palette = 2)
+  scale_fill_brewer(type = "seq", palette = 1, guide=FALSE) +
+  scale_color_brewer(type = "qual", palette = 2) +
+  theme_minimal() +
+  labs(x = "Generating Weights", y = "RPB") +
+  theme(legend.position = "right",
+        panel.spacing = unit(2, "lines"),
+        text = element_text(size=20),
+        legend.title = element_text(size=15)) +
+  guides(color = guide_legend(title = ""),
+         linetype = guide_legend(title = "Estimating Weights"))
 
+ggsave("Figs/RPB-X_M Cor by Parameter.jpg", dpi = 1000, width = 11, height = 8.5)
+
+# df_sum2 %>%
+#   filter(Parameter == "FE_Mj") %>%
+#   ggplot(aes(x = Gen, y = RPB, color = Est_Equal, linetype = Est_Random, fill = Correct)) +
+#   geom_boxplot() +
+#   geom_hline(yintercept = 0) +
+#   geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
+#   # labs(title = "RPB - X_M Cor by Parameter") +
+#   facet_grid(Parameter ~ X_PS.cor) +
+#   scale_fill_brewer(type = "seq", palette = 1, guide=FALSE) +
+#   scale_color_brewer(type = "qual", palette = 2) +
+#   theme_minimal() +
+#   labs(x = "Generating Weights", y = "RPB") +
+#   theme(legend.position = "right",
+#         panel.spacing = unit(2, "lines"),
+#         text = element_text(size=20),
+#         legend.title = element_text(size=15)) +
+#   guides(color = guide_legend(title = ""),
+#          linetype = guide_legend(title = "Estimating Weights"))
+# 
+# ggsave("Figs/RPB-X_M Cor by Parameter-Mj only.jpg", dpi = 1000, width = 11, height = 8.5)
 
 ```
 
@@ -169,11 +205,20 @@ df_sum2 %>%
   geom_boxplot() +
   geom_hline(yintercept = 0) +
   geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
-  labs(title = "RPB - %M by Parameter") +
-  facet_wrap(Parameter ~ M.m , scales = "free_y", ncol = 4) +
-  theme_bw() +
-  scale_fill_brewer(type = "seq", palette = 1) +
-  scale_color_brewer(type = "qual", palette = 2)
+  # labs(title = "RPB - %M by Parameter") +
+  facet_wrap(Parameter ~ M.m, ncol = 2) +
+  scale_fill_brewer(type = "seq", palette = 1, guide=FALSE) +
+  scale_color_brewer(type = "qual", palette = 2) +
+  theme_minimal() +
+  labs(x = "Generating Weights", y = "RPB") +
+  theme(legend.position = "right",
+        panel.spacing = unit(2, "lines"),
+        text = element_text(size=20),
+        legend.title = element_text(size=15)) +
+  guides(color = guide_legend(title = ""),
+         linetype = guide_legend(title = "Estimating Weights"))
+
+ggsave("Figs/RPB-Prec M by Parameter.jpg", dpi = 1000, width = 11, height = 8.5)
 
 ```
 
@@ -191,11 +236,20 @@ df_sum2 %>%
   geom_boxplot() +
   geom_hline(yintercept = 0) +
   geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
-  labs(title = "RPB - ICC by Parameter") +
-  facet_wrap(Parameter ~ ICC, scales = "free_y", ncol = 4) +
-  theme_bw() +
-  scale_fill_brewer(type = "seq", palette = 1) +
-  scale_color_brewer(type = "qual", palette = 2)
+  # labs(title = "RPB - ICC by Parameter") +
+  facet_wrap(Parameter ~ ICC, ncol = 2) +
+  scale_fill_brewer(type = "seq", palette = 1, guide=FALSE) +
+  scale_color_brewer(type = "qual", palette = 2) +
+  theme_minimal() +
+  labs(x = "Generating Weights", y = "RPB") +
+  theme(legend.position = "right",
+        panel.spacing = unit(2, "lines"),
+        text = element_text(size=20),
+        legend.title = element_text(size=15)) +
+  guides(color = guide_legend(title = ""),
+         linetype = guide_legend(title = "Estimating Weights"))
+
+ggsave("Figs/RPB-ICC by Parameter.jpg", dpi = 1000, width = 11, height = 8.5)
 
 
 
@@ -216,10 +270,19 @@ df_sum2 %>%
   geom_hline(yintercept = 0) +
   geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
   labs(title = "RPB - L2 effects by Parameter") +
-  facet_wrap(Parameter ~ Bs, scales = "free_y", ncol = 4) +
-  theme_bw() +
-  scale_fill_brewer(type = "seq", palette = 1) +
-  scale_color_brewer(type = "qual", palette = 2)
+  facet_wrap(Parameter ~ Bs, ncol = 2) +
+  scale_fill_brewer(type = "seq", palette = 1, guide=FALSE) +
+  scale_color_brewer(type = "qual", palette = 2) +
+  theme_minimal() +
+  labs(x = "Generating Weights", y = "RPB") +
+  theme(legend.position = "right",
+        panel.spacing = unit(2, "lines"),
+        text = element_text(size=20),
+        legend.title = element_text(size=15)) +
+  guides(color = guide_legend(title = ""),
+         linetype = guide_legend(title = "Estimating Weights"))
+
+ggsave("Figs/RPB-L2 effects by Parameter.jpg", dpi = 1000, width = 11, height = 8.5)
 ```
 
 ### $\gamma_{M_j}$
@@ -232,11 +295,20 @@ df_sum %>%
   geom_boxplot() +
   geom_hline(yintercept = 0) +
   geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
-  labs(title = "FE_Mj RPB - %M by cor(X,M)") +
-  facet_grid(M.m ~ X_PS.cor) +
-  theme_bw() +
-  scale_fill_brewer(type = "seq", palette = 1) +
-  scale_color_brewer(type = "qual", palette = 2)
+  # labs(title = "FE_Mj RPB - %M by cor(X,M)") +
+  facet_grid(X_PS.cor ~ M.m) +
+  scale_fill_brewer(type = "seq", palette = 1, guide=FALSE) +
+  scale_color_brewer(type = "qual", palette = 2) +
+  theme_minimal() +
+  labs(x = "Generating Weights", y = "RPB") +
+  theme(legend.position = "right",
+        panel.spacing = unit(2, "lines"),
+        text = element_text(size=20),
+        legend.title = element_text(size=15)) +
+  guides(color = guide_legend(title = ""),
+         linetype = guide_legend(title = "Estimating Weights"))
+
+ggsave("Figs/FE_Mj RPB-Perc M by Cor.jpg", dpi = 1000, width = 11, height = 8.5)
 ```
 
 ```{r, cache = T, echo = F}
@@ -247,11 +319,20 @@ df_sum %>%
   geom_boxplot() +
   geom_hline(yintercept = 0) +
   geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
-  labs(title = "FE_Mj RPB - %M by L2 Strength") +
-  facet_grid(M.m ~ Bs) +
-  theme_bw() +
-  scale_fill_brewer(type = "seq", palette = 1) +
-  scale_color_brewer(type = "qual", palette = 2)
+  # labs(title = "FE_Mj RPB - %M by L2 Strength") +
+  facet_grid(X_PS.cor ~ Bs + M.m) +
+  scale_fill_brewer(type = "seq", palette = 1, guide=FALSE) +
+  scale_color_brewer(type = "qual", palette = 2) +
+  theme_minimal() +
+  labs(x = "Generating Weights", y = "RPB") +
+  theme(legend.position = "right",
+        panel.spacing = unit(2, "lines"),
+        text = element_text(size=20),
+        legend.title = element_text(size=15)) +
+  guides(color = guide_legend(title = ""),
+         linetype = guide_legend(title = "Estimating Weights"))
+
+ggsave("Figs/FE_Mj RPB-Perc M by L2 and Cor.jpg", dpi = 1000, width = 11, height = 8.5)
 
 ```
 
