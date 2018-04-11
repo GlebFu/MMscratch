@@ -11,7 +11,7 @@ options(width = 100)
 
 library(tidyverse)
 
-
+gsave <- F
 
 ```
 
@@ -27,15 +27,18 @@ results <- bind_rows(out.i) %>%
          Correct = ifelse(Correct, T, NA),
          Parameter = factor(Parameter),
          Bs = factor(Bs),
-         ICC = round(ICC, 2))
+         ICC = factor(round(ICC, 2)),
+         X_PS.cor = factor(X_PS.cor),
+         M.m = factor(M.m))
 
 levels(results$Parameter) <- c("FE_Int", "FE_M", "FE_Mj", "FE_Xj", "FE_X", "RE_e", "RE_u")
 results$Parameter <- factor(results$Parameter, c("FE_Int", "FE_M", "FE_X", "FE_Mj", "FE_Xj", "RE_e", "RE_u"))
 
 
-levels(results$Bs) <- c("Weak L2", "Strong L2")
-
-
+levels(results$Bs) <- c("{gamma['01']==gamma['02']}==.5", "{gamma['01']==gamma['02']}==1")
+levels(results$X_PS.cor) <- paste("rho[XM]==", levels(results$X_PS.cor), sep = "")
+levels(results$ICC) <- paste("ICC==", levels(results$ICC), sep = "")
+levels(results$M.m) <- paste("bar(M)==", levels(results$M.m), sep = "")
 ```
 
 ## Data Generation
@@ -83,8 +86,10 @@ levels(results$Bs) <- c("Weak L2", "Strong L2")
 There is some variation due to conditions but on average the different estimation methods do not seem to have much difference
 
 ```{r, cache = T, echo = F, fig.width=10, fig.height=7}
+
 df_sum <- results %>% filter(stat == "Estimate")
 # df_sum <- results %>% filter(stat == "Error")
+
 
 df_sum %>%
   ggplot(aes(x = Gen, y = RPB, color = Est_Equal, linetype = Est_Random, fill = Correct)) +
@@ -103,7 +108,7 @@ df_sum %>%
   guides(color = guide_legend(title = ""),
          linetype = guide_legend(title = "Estimating Weights"))
 
-ggsave("Figs/RPB-All Cond.jpg", dpi = 1000, width = 11, height = 8.5)
+if(gsave) ggsave("Figs/RPB-All Cond.jpg", dpi = 1000, width = 11, height = 8.5)
 
 
 ```
@@ -124,7 +129,7 @@ df_sum %>%
   geom_hline(yintercept = 0) +
   geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
   # labs(title = "RPB - All Conditions by Parameter") +
-  facet_wrap(~ Parameter, scales = "free_y") +
+  facet_wrap(~ Parameter, scales = "free_y", labeller = label_parsed) +
   scale_fill_brewer(type = "seq", palette = 1, guide=FALSE) +
   scale_color_brewer(type = "qual", palette = 2) +
   theme_minimal() +
@@ -136,7 +141,7 @@ df_sum %>%
   guides(color = guide_legend(title = ""),
          linetype = guide_legend(title = "Estimating Weights"))
 
-ggsave("Figs/RPB-Cond by Param.jpg", dpi = 1000, width = 11, height = 8.5)
+if(gsave) ggsave("Figs/RPB-Cond by Param.jpg", dpi = 1000, width = 11, height = 8.5)
 ```
 
 ### RPB for each parameter by $\rho_{X,M}$
@@ -153,7 +158,7 @@ df_sum2 %>%
   geom_hline(yintercept = 0) +
   geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
   # labs(title = "RPB - X_M Cor by Parameter") +
-  facet_grid(Parameter ~ X_PS.cor) +
+  facet_grid(Parameter ~ X_PS.cor, labeller = label_parsed) +
   scale_fill_brewer(type = "seq", palette = 1, guide=FALSE) +
   scale_color_brewer(type = "qual", palette = 2) +
   theme_minimal() +
@@ -165,7 +170,7 @@ df_sum2 %>%
   guides(color = guide_legend(title = ""),
          linetype = guide_legend(title = "Estimating Weights"))
 
-ggsave("Figs/RPB-X_M Cor by Parameter.jpg", dpi = 1000, width = 11, height = 8.5)
+if(gsave) ggsave("Figs/RPB-X_M Cor by Parameter.jpg", dpi = 1000, width = 11, height = 8.5)
 
 # df_sum2 %>%
 #   filter(Parameter == "FE_Mj") %>%
@@ -186,7 +191,7 @@ ggsave("Figs/RPB-X_M Cor by Parameter.jpg", dpi = 1000, width = 11, height = 8.5
 #   guides(color = guide_legend(title = ""),
 #          linetype = guide_legend(title = "Estimating Weights"))
 # 
-# ggsave("Figs/RPB-X_M Cor by Parameter-Mj only.jpg", dpi = 1000, width = 11, height = 8.5)
+# if(gsave) ggsave("Figs/RPB-X_M Cor by Parameter-Mj only.jpg", dpi = 1000, width = 11, height = 8.5)
 
 ```
 
@@ -206,7 +211,7 @@ df_sum2 %>%
   geom_hline(yintercept = 0) +
   geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
   # labs(title = "RPB - %M by Parameter") +
-  facet_wrap(Parameter ~ M.m, ncol = 2) +
+  facet_wrap(Parameter ~ M.m, ncol = 2, labeller = label_parsed) +
   scale_fill_brewer(type = "seq", palette = 1, guide=FALSE) +
   scale_color_brewer(type = "qual", palette = 2) +
   theme_minimal() +
@@ -218,7 +223,7 @@ df_sum2 %>%
   guides(color = guide_legend(title = ""),
          linetype = guide_legend(title = "Estimating Weights"))
 
-ggsave("Figs/RPB-Prec M by Parameter.jpg", dpi = 1000, width = 11, height = 8.5)
+if(gsave) ggsave("Figs/RPB-Prec M by Parameter.jpg", dpi = 1000, width = 11, height = 8.5)
 
 ```
 
@@ -237,7 +242,7 @@ df_sum2 %>%
   geom_hline(yintercept = 0) +
   geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
   # labs(title = "RPB - ICC by Parameter") +
-  facet_wrap(Parameter ~ ICC, ncol = 2) +
+  facet_wrap(Parameter ~ ICC, ncol = 2, labeller = label_parsed) +
   scale_fill_brewer(type = "seq", palette = 1, guide=FALSE) +
   scale_color_brewer(type = "qual", palette = 2) +
   theme_minimal() +
@@ -249,7 +254,7 @@ df_sum2 %>%
   guides(color = guide_legend(title = ""),
          linetype = guide_legend(title = "Estimating Weights"))
 
-ggsave("Figs/RPB-ICC by Parameter.jpg", dpi = 1000, width = 11, height = 8.5)
+if(gsave) ggsave("Figs/RPB-ICC by Parameter.jpg", dpi = 1000, width = 11, height = 8.5)
 
 
 
@@ -270,7 +275,7 @@ df_sum2 %>%
   geom_hline(yintercept = 0) +
   geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
   labs(title = "RPB - L2 effects by Parameter") +
-  facet_wrap(Parameter ~ Bs, ncol = 2) +
+  facet_wrap(Parameter ~ Bs, ncol = 2, labeller = label_parsed) +
   scale_fill_brewer(type = "seq", palette = 1, guide=FALSE) +
   scale_color_brewer(type = "qual", palette = 2) +
   theme_minimal() +
@@ -282,7 +287,7 @@ df_sum2 %>%
   guides(color = guide_legend(title = ""),
          linetype = guide_legend(title = "Estimating Weights"))
 
-ggsave("Figs/RPB-L2 effects by Parameter.jpg", dpi = 1000, width = 11, height = 8.5)
+if(gsave) ggsave("Figs/RPB-L2 effects by Parameter.jpg", dpi = 1000, width = 11, height = 8.5)
 ```
 
 ### $\gamma_{M_j}$
@@ -296,7 +301,7 @@ df_sum %>%
   geom_hline(yintercept = 0) +
   geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
   # labs(title = "FE_Mj RPB - %M by cor(X,M)") +
-  facet_grid(X_PS.cor ~ M.m) +
+  facet_grid(X_PS.cor ~ M.m, labeller = label_parsed) +
   scale_fill_brewer(type = "seq", palette = 1, guide=FALSE) +
   scale_color_brewer(type = "qual", palette = 2) +
   theme_minimal() +
@@ -308,7 +313,7 @@ df_sum %>%
   guides(color = guide_legend(title = ""),
          linetype = guide_legend(title = "Estimating Weights"))
 
-ggsave("Figs/FE_Mj RPB-Perc M by Cor.jpg", dpi = 1000, width = 11, height = 8.5)
+if(gsave) ggsave("Figs/FE_Mj RPB-Perc M by Cor.jpg", dpi = 1000, width = 11, height = 8.5)
 ```
 
 ```{r, cache = T, echo = F}
@@ -320,7 +325,7 @@ df_sum %>%
   geom_hline(yintercept = 0) +
   geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
   # labs(title = "FE_Mj RPB - %M by L2 Strength") +
-  facet_grid(X_PS.cor ~ Bs + M.m) +
+  facet_grid(X_PS.cor ~ Bs + M.m, labeller = label_parsed) +
   scale_fill_brewer(type = "seq", palette = 1, guide=FALSE) +
   scale_color_brewer(type = "qual", palette = 2) +
   theme_minimal() +
@@ -332,179 +337,63 @@ df_sum %>%
   guides(color = guide_legend(title = ""),
          linetype = guide_legend(title = "Estimating Weights"))
 
-ggsave("Figs/FE_Mj RPB-Perc M by L2 and Cor.jpg", dpi = 1000, width = 11, height = 8.5)
+if(gsave) ggsave("Figs/FE_Mj RPB-Perc M by L2 and Cor.jpg", dpi = 1000, width = 11, height = 8.5)
 
-```
-
-## Results - RMSE
-
-Note: limited interpretability due to low number of iterations
-
-### Collapse across conditions
-
-There is some variation due to conditions but on average the different estimation methods do not seem to have much difference
-
-```{r, cache = T, echo = F, fig.width=10, fig.height=7}
-df_sum <- results %>% filter(stat == "Estimate")
-# df_sum <- results %>% filter(stat == "Error")
-
-df_sum %>%
-  ggplot(aes(x = Gen, y = RMSE, color = Est_Equal, linetype = Est_Random, fill = Correct)) +
-  geom_boxplot() +
-  geom_hline(yintercept = 0) +
-  geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
-  labs(title = "RMSE - All Conditions") +
-  theme_bw() +
-  scale_fill_brewer(type = "seq", palette = 1) +
-  scale_color_brewer(type = "qual", palette = 2)
-
-
-
-```
-
-### RMSE for each parameter across conditions
-
-L1 fixed effects perform well with no apparent differences by weight and will be dropped for the remainder.
-
-$\sigma$ is estimated well but left in. Notably this is the only parameter where correct weight specification consistantly outperforms
-
-$\gamma_{M_j}$ displays substantial bias. 
-
-```{r, cache = T, echo = F}
-df_sum %>%
-  ggplot(aes(x = Gen, y = RMSE, color = Est_Equal, linetype = Est_Random, fill = Correct)) +
-  geom_boxplot() +
-  geom_hline(yintercept = 0) +
-  geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
-  labs(title = "RMSE - All Conditions by Parameter") +
-  facet_wrap(~ Parameter, scales = "free_y") +
-  theme_bw() +
-  scale_fill_brewer(type = "seq", palette = 1) +
-  scale_color_brewer(type = "qual", palette = 2)
-
-
-```
-
-### RMSE for each parameter by $\rho_{X,M}$
-
-Bizarre relationship between $\rho$ and $\gamma_{M_j}$ bias
-
-```{r, cache = T, echo = F}
-
-df_sum2 <- df_sum %>% filter(Parameter %in% c("FE_Mj", "FE_Xj", "RE_e", "RE_u"))
-
-df_sum2 %>%
-  ggplot(aes(x = Gen, y = RMSE, color = Est_Equal, linetype = Est_Random, fill = Correct)) +
-  geom_boxplot() +
-  geom_hline(yintercept = 0) +
-  geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
-  labs(title = "RMSE - X_M Cor by Parameter") +
-  facet_grid(Parameter ~ X_PS.cor) +
-  # facet_grid(Parameter ~ X_PS.cor) +
-  theme_bw() +
-  scale_fill_brewer(type = "seq", palette = 1) +
-  scale_color_brewer(type = "qual", palette = 2)
-
-
-```
-
-### RMSE for each parameter by mobility %
-
-$\gamma_{M_j}$seem biased with low mobility
-
-Unequal weights result in biased $\gamma_{Y_j}$ and $\tau_{00}$ when true weights are equal
-
-For some reason Fixed and Random Unequal weights seem to diverge from other models here for $\tau_{00}$ and $\gamma_{X_j}$
-
-```{r, cache = T, echo = F}
-
-df_sum2 %>%
-  ggplot(aes(x = Gen, y = RMSE, color = Est_Equal, linetype = Est_Random, fill = Correct)) +
-  geom_boxplot() +
-  geom_hline(yintercept = 0) +
-  geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
-  labs(title = "RMSE - %M by Parameter") +
-  facet_wrap(Parameter ~ M.m , scales = "free_y", ncol = 4) +
-  theme_bw() +
-  scale_fill_brewer(type = "seq", palette = 1) +
-  scale_color_brewer(type = "qual", palette = 2)
-
-```
-
-### RMSE for each parameter by ICC
-
-Larger ICC increases variability of $\gamma_{M_j}$ across other conditions, bias increased on average
-
-Again Fixed and Random Unequal weights diverge  under equal weight generation condition
-
-```{r, cache = T, echo = F}
-
-
-df_sum2 %>%
-  ggplot(aes(x = Gen, y = RMSE, color = Est_Equal, linetype = Est_Random, fill = Correct)) +
-  geom_boxplot() +
-  geom_hline(yintercept = 0) +
-  geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
-  labs(title = "RMSE - ICC by Parameter") +
-  facet_wrap(Parameter ~ ICC, scales = "free_y", ncol = 4) +
-  theme_bw() +
-  scale_fill_brewer(type = "seq", palette = 1) +
-  scale_color_brewer(type = "qual", palette = 2)
-
-
-
-
-```
-
-
-### RMSE for each parameter by L2 effects
-
-Note: "Strong" $\gamma_{M_j} = \gamma_{X_j} = 1$; "Weak" $\gamma_{M_j} = \gamma_{X_j} = .5$
-
-Again Fixed and Random Unequal weights diverg
-
-```{r, cache = T, echo = F}
-df_sum2 %>%
-  ggplot(aes(x = Gen, y = RMSE, color = Est_Equal, linetype = Est_Random, fill = Correct)) +
-  geom_boxplot() +
-  geom_hline(yintercept = 0) +
-  geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
-  labs(title = "RMSE - L2 effects by Parameter") +
-  facet_wrap(Parameter ~ Bs, scales = "free_y", ncol = 4) +
-  theme_bw() +
-  scale_fill_brewer(type = "seq", palette = 1) +
-  scale_color_brewer(type = "qual", palette = 2)
-```
-
-### $\gamma_{M_j}$
-
-```{r, cache = T, echo = F}
-
-df_sum %>%
-  filter(Parameter == "FE_Mj") %>%
-  ggplot(aes(x = Gen, y = RMSE, color = Est_Equal, linetype = Est_Random, fill = Correct)) +
-  geom_boxplot() +
-  geom_hline(yintercept = 0) +
-  geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
-  labs(title = "FE_Mj RMSE - %M by cor(X,M)") +
-  facet_grid(M.m ~ X_PS.cor) +
-  theme_bw() +
-  scale_fill_brewer(type = "seq", palette = 1) +
-  scale_color_brewer(type = "qual", palette = 2)
 ```
 
 ```{r, cache = T, echo = F}
 
 df_sum %>%
   filter(Parameter == "FE_Mj") %>%
-  ggplot(aes(x = Gen, y = RMSE, color = Est_Equal, linetype = Est_Random, fill = Correct)) +
+  ggplot(aes(x = Gen, y = RPB, color = Est_Equal, linetype = Est_Random, fill = Correct)) +
   geom_boxplot() +
   geom_hline(yintercept = 0) +
   geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
-  labs(title = "FE_Mj RMSE - %M by L2 Strength") +
-  facet_grid(M.m ~ Bs) +
-  theme_bw() +
-  scale_fill_brewer(type = "seq", palette = 1) +
-  scale_color_brewer(type = "qual", palette = 2)
+  # labs(title = "FE_Mj RPB - %M by L2 Strength") +
+  facet_grid(Bs + ICC ~ M.m, labeller = label_parsed) +
+  scale_fill_brewer(type = "seq", palette = 1, guide=FALSE) +
+  scale_color_brewer(type = "qual", palette = 2) +
+  theme_minimal() +
+  labs(x = "Generating Weights", y = "RPB") +
+  theme(legend.position = "right",
+        panel.spacing = unit(2, "lines"),
+        text = element_text(size=20),
+        legend.title = element_text(size=15)) +
+  guides(color = guide_legend(title = ""),
+         linetype = guide_legend(title = "Estimating Weights"))
+
+if(gsave) ggsave("Figs/FE_Mj RPB.jpg", dpi = 1000, width = 11, height = 8.5)
 
 ```
+
+<!-- ```{r, cache = T, echo = F} -->
+
+<!-- # df_sum %>% -->
+<!-- #   filter(Parameter == "FE_Mj") %>% -->
+<!-- #   ggplot(aes(x = Gen, y = RPB, color = Est_Equal, linetype = Est_Random, fill = Correct)) + -->
+<!-- #   facet_grid(ICC + X_PS.cor ~ Bs + M.m, labeller = label_parsed) -->
+
+<!-- df_sum %>% -->
+<!--   filter(Parameter == "FE_Mj", Gen == "Equal") %>% -->
+<!--   mutate(Correct = ifelse(is.na(Correct), FALSE, TRUE)) %>% -->
+<!--   ggplot(aes(x = M.m, y = RPB, color = Correct)) + -->
+<!--   geom_boxplot() + -->
+<!--   geom_hline(yintercept = 0) + -->
+<!--   geom_hline(yintercept = c(.05, -.05), linetype = "dashed") + -->
+<!--   # labs(title = "FE_Mj RPB - %M by L2 Strength") + -->
+<!--   facet_grid(Bs + ICC ~ Est_Equal + Est_Random, labeller = label_parsed) + -->
+<!--   scale_fill_brewer(type = "seq", palette = 1, guide=FALSE) + -->
+<!--   scale_color_brewer(type = "qual", palette = 2) + -->
+<!--   theme_minimal() + -->
+<!--   labs(x = "Generating Weights", y = "RPB") + -->
+<!--   theme(legend.position = "right", -->
+<!--         panel.spacing = unit(2, "lines"), -->
+<!--         text = element_text(size=20), -->
+<!--         legend.title = element_text(size=15)) + -->
+<!--   guides(color = guide_legend(title = ""), -->
+<!--          linetype = guide_legend(title = "Estimating Weights")) -->
+
+<!-- if(gsave) ggsave("Figs/FE_Mj RPB", dpi = 1000, width = 11, height = 8.5) -->
+
+<!-- ``` -->
+
