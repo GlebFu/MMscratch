@@ -26,16 +26,15 @@ cond <- list(n.students = 3000,
              n.schools = 100,
              u0.m = 0,
              u0.sd = c(.42, .577),
-             gen_frm = list(~ 1 + X + M + wMj + wXj + w.u0 + e),
-             Bs = list(c(0, 1, 1, 1, 1, 1, 1),
-                       c(0, 1, 1, .5, .5, 1, 1)),
-             est_frm = list(Y ~ 1 + X + M + wMj + wXj + (1 | mm1) + (1 | ID))) %>%
+             gen_frm = list(~ 1 + X + M + w.u0 + e),
+             Bs = list(c(0, 1, 1, 1, 1)),
+             est_frm = list(Y ~ 1 + X + M + (1 | mm1) + (1 | ID))) %>%
   expand.grid() %>%
   mutate(ICC = u0.sd^2 / (u0.sd^2 + e.sd^2),
          CID = 1:n()) %>%
   as.tibble()
 
-cond %>% mutate_all(as.character) %>% write.csv("Results/2018-03-30/conditions.csv")
+cond %>% mutate_all(as.character) %>% write.csv("Results/2018-05-03/conditions.csv")
 
 # cond <- cond[1:12,]
 # cond <- cond[13:24,]
@@ -59,7 +58,8 @@ sim_driver <- function(cond) {
                                cond$u0.sd,
                                cond$gen_frm,
                                cond$Bs,
-                               cond$est_frm),
+                               cond$est_frm,
+                               w.sd = 0),
                        simplify = F) %>%
     bind_rows() %>%
     data.frame()
@@ -77,7 +77,7 @@ no_cores <- detectCores() - 1
 
 cond <- bind_rows(replicate(no_cores, cond, simplify = FALSE))
 
-minreps <- 1000
+minreps <- 100
 reps <- (minreps + (no_cores - minreps %% no_cores)) / no_cores
 cond$reps <- reps
 
@@ -95,21 +95,21 @@ stopCluster(cl)
 
 
 
-save(runtime, reps, no_cores, file = "Results/2018-03-30/time.rdata")
-load("Results/2018-03-30/time.rdata")
+save(runtime, reps, no_cores, file = "Results/2018-05-03/time.rdata")
+load("Results/2018-05-03/time.rdata")
 
 avgRun <- runtime / (reps * no_cores)
 round(avgRun * 200 / 60 / 60, 2) # Hours
 round(avgRun * 200 / 60, 2)      # Minutes
 
-save(results, cond, seed, file = "Results/2018-03-30/full.rdata")
+save(results, cond, seed, file = "Results/2018-05-03/full.rdata")
 
 cond <- mutate(cond, RID = 1:n())
 
 for(i in 1:nrow(cond)) {
   cbind(cond[i,] %>% mutate_if(is.list, as.character), results[[i]]) %>%
-    write_csv(paste("Results/2018-03-30/", cond[i,]$CID, "-", cond[i,]$RID, " Results.csv", sep = ""))
+    write_csv(paste("Results/2018-05-03/", cond[i,]$CID, "-", cond[i,]$RID, " Results.csv", sep = ""))
 }
 
 
-load("Results/2018-03-30/full.rdata")
+load("Results/2018-05-03/full.rdata")

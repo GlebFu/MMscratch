@@ -1,7 +1,7 @@
 # library(R2MLwiN)
 library(tidyverse)
 
-options(MLwiN_path="C:/Program Files/MLwiN v2.36/")
+options(MLwiN_path="C:/Program Files/MLwiN v3.01/")
 
 # rm(list = ls())
 
@@ -67,12 +67,12 @@ moveSch <- function(prior.school, M, isMoving) {
 # REFORMAT DATA FOR MULTIPLE MEMBERSHIP ANALYSIS
 toMM <- function(data) {
   ww <- data %>% 
-    select(ID, w1:w3, estimation) %>%
+    dplyr::select(ID, w1:w3, estimation) %>%
     gather(key = ww, value = weight, w1:w3) %>%
     mutate(time = str_sub(ww, start = 2))
            
   ww <- mm <- data %>% 
-    select(ID, S1:S3, estimation) %>%
+    dplyr::select(ID, S1:S3, estimation) %>%
     gather(key = mm, value = sid, S1:S3) %>%
     mutate(time = str_sub(mm, start = 2)) %>%
     left_join(ww) %>%
@@ -104,7 +104,7 @@ gen_L1 <- function(n = 1000, X_PS.cor = .5, X.m = 0, X.sd = 1, M.m = .25, e.m = 
     arrange(p_M) %>%
     mutate(rank = n():1,
            M = as.numeric(rank <= n() * M.m)) %>%
-    select(X, p_M, M) %>%
+    dplyr::select(X, p_M, M) %>%
     mutate(ID = 1:n(),
            e = rnorm(n(), e.m, e.sd),
            nSchools = (M + flip(M*tripleRate)) + 1)
@@ -118,7 +118,7 @@ gen_L2 <- function(n.schools, u0.m, u0.sd, df) {
   
   # Generate weighted L2 predictors 
   df_sch <- df %>% 
-    select(S1:S3, X, M) %>%
+    dplyr::select(S1:S3, X, M) %>%
     gather(key = Time, value = SID, S1:S3) %>%
     group_by(Time, SID) %>%
     summarise(M = mean(M),
@@ -128,13 +128,13 @@ gen_L2 <- function(n.schools, u0.m, u0.sd, df) {
   
   # Pull L2 variables from time 1 for each student's current school
   df <- df %>%
-    left_join(filter(df_sch, Time == "S1") %>% select(-Time),
+    left_join(filter(df_sch, Time == "S1") %>% dplyr::select(-Time),
               suffix = c("", ".S1"),
               by = c("S1" = "SID")) %>%
-    left_join(filter(df_sch, Time == "S1") %>% select(-Time),
+    left_join(filter(df_sch, Time == "S1") %>% dplyr::select(-Time),
               suffix = c("", ".S2"),
               by = c("S2" = "SID")) %>%
-    left_join(filter(df_sch, Time == "S1") %>% select(-Time),
+    left_join(filter(df_sch, Time == "S1") %>% dplyr::select(-Time),
               suffix = c("", ".S3"),
               by = c("S3" = "SID"))
   
@@ -152,14 +152,14 @@ gen_L2 <- function(n.schools, u0.m, u0.sd, df) {
 gen_Y <- function(genMod, df) {
 
   # Generate responses given true weights are equal
-  X_EQ <- t(model.matrix(genMod$frm, filter(df, isEqual, isRandom) %>% arrange(ID)))
+  X_EQ <- t(model.matrix(genMod$frm[[1]], filter(df, isEqual, isRandom) %>% arrange(ID)))
   
-  Y_EQ <- as.numeric(t(genMod$Bs %*% X_EQ))
+  Y_EQ <- as.numeric(t(genMod$Bs[[1]] %*% X_EQ))
   
   # Generate respoesns given true weights are unequal
-  X_UQ <- t(model.matrix(genMod$frm, filter(df, !isEqual, isRandom) %>% arrange(ID)))
+  X_UQ <- t(model.matrix(genMod$frm[[1]], filter(df, !isEqual, isRandom) %>% arrange(ID)))
   
-  Y_UQ <- as.numeric(t(genMod$Bs %*% X_UQ))
+  Y_UQ <- as.numeric(t(genMod$Bs[[1]] %*% X_UQ))
   
   data.frame(Y_EQ, Y_UQ) %>%
     mutate(ID = 1:n()) %>%
@@ -167,7 +167,7 @@ gen_Y <- function(genMod, df) {
 }
 
 # DATA GENERATION DRIVER
-gen_data <- function(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate, n.schools, u0.m, u0.sd, genMod, gmc = T, w.sd = 1) {
+gen_data <- function(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate, n.schools, u0.m, u0.sd, genMod, gmc = T, w.sd) {
   
   # Generate Level 1 Data
   df <- gen_L1(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate)
@@ -183,8 +183,13 @@ gen_data <- function(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate
   df_r_uq <- cbind(df, isRandom = T, isEqual = F, genWeights(df$nSchools, ws = c(1/6, 1/6, 4/6), sd = w.sd))
   
   # Generate Fixed Weights (sd = 0)
-  df_f_eq <- cbind(df, isRandom = F, isEqual = T, genWeights(df$nSchools, sd = 0))
-  df_f_uq <- cbind(df, isRandom = F, isEqual = F, genWeights(df$nSchools, ws = c(1/6, 1/6, 4/6), sd = 0))
+  # df_f_eq <- cbind(df, isRandom = F, isEqual = T, genWeights(df$nSchools, sd = 0))
+  # df_f_uq <- cbind(df, isRandom = F, isEqual = F, genWeights(df$nSchools, ws = c(1/6, 1/6, 4/6), sd = 0))
+  
+  df_f_eq <- df_r_eq
+  df_f_uq <- df_r_uq
+  
+  df_f_eq$isRandom <- df_f_uq$isRandom <- F
   
   df <- rbind(df_r_eq, df_r_uq, df_f_eq, df_f_uq) %>%
     mutate(estimation = paste(ifelse(isRandom, "Random", "Fixed"), ifelse(isEqual, "Equal", "Unequal"), sep = "_"))
@@ -236,13 +241,13 @@ run_estimation <- function(df, frm) {
                     weights = list("ww1", "ww2", "ww3")),
                NA)
     
-    runMLwiN(Formula = frm,
+    runMLwiN(Formula = frm[[1]],
              data = df,
              estoptions = list(EstM = 1, drop.data = F, mm = mm))
   }
   
   df %>% 
-    select(ID, isEqual, isRandom, mm1:ww3, Y_EQ, Y_UQ, X, M, wMj, wXj) %>%
+    dplyr::select(ID, isEqual, isRandom, mm1:ww3, Y_EQ, Y_UQ, X, M, wMj, wXj) %>%
     arrange(mm1, mm2, mm3) %>%
     gather(key = Gen, value = Y, Y_EQ:Y_UQ) %>%
     group_by(isEqual, isRandom, Gen) %>%
@@ -269,7 +274,7 @@ getCoefs <- function(mdl) {
 
 # test2 <- test %>%
 #   mutate(coefs = map(model, getCoefs)) %>%
-#   select(-data, -model) %>%
+#   dplyr::select(-data, -model) %>%
 #   unnest(coefs)
 
 
@@ -278,14 +283,14 @@ run_sim <- function(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate,
   genMod <- list(frm = gen_frm,
              Bs = Bs)
   
-  df <- gen_data(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate, n.schools, u0.m, u0.sd, genMod, w.sd)
+  df <- gen_data(n.students, X_PS.cor, X.m, X.sd, M.m, e.m, e.sd, tripleRate, n.schools, u0.m, u0.sd, genMod, w.sd = w.sd)
   
   mods <- df %>%
     run_estimation(est_frm)
   
   res <- mods %>%
     mutate(coefs = map(model, getCoefs)) %>%
-    select(-data, -model) %>%
+    dplyr::select(-data, -model) %>%
     unnest(coefs)
   
   
