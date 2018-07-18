@@ -152,14 +152,14 @@ gen_L2 <- function(n.schools, u0.m, u0.sd, df) {
 gen_Y <- function(genMod, df) {
 
   # Generate responses given true weights are equal
-  X_EQ <- t(model.matrix(genMod$frm[[1]], filter(df, isEqual, isRandom) %>% arrange(ID)))
+  X_EQ <- t(model.matrix(genMod$frm, filter(df, isEqual, isRandom) %>% arrange(ID)))
   
-  Y_EQ <- as.numeric(t(genMod$Bs[[1]] %*% X_EQ))
+  Y_EQ <- as.numeric(t(genMod$Bs %*% X_EQ))
   
   # Generate respoesns given true weights are unequal
-  X_UQ <- t(model.matrix(genMod$frm[[1]], filter(df, !isEqual, isRandom) %>% arrange(ID)))
+  X_UQ <- t(model.matrix(genMod$frm, filter(df, !isEqual, isRandom) %>% arrange(ID)))
   
-  Y_UQ <- as.numeric(t(genMod$Bs[[1]] %*% X_UQ))
+  Y_UQ <- as.numeric(t(genMod$Bs %*% X_UQ))
   
   data.frame(Y_EQ, Y_UQ) %>%
     mutate(ID = 1:n()) %>%
@@ -241,7 +241,7 @@ run_estimation <- function(df, frm) {
                     weights = list("ww1", "ww2", "ww3")),
                NA)
     
-    runMLwiN(Formula = frm[[1]],
+    runMLwiN(Formula = frm,
              data = df,
              estoptions = list(EstM = 1, drop.data = F, mm = mm))
   }

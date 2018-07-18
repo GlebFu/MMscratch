@@ -4,6 +4,9 @@ rm(list = ls())
 
 source("SimSource.R")
 
+dt <- "2018-07-18"
+dir <- paste("Results/", dt, "/", sep = "")
+
 #----------------------
 # Conditions - Real
 #----------------------
@@ -34,7 +37,7 @@ cond <- list(n.students = 3000,
          CID = 1:n()) %>%
   as.tibble()
 
-cond %>% mutate_all(as.character) %>% write.csv("Results/2018-05-03/conditions.csv")
+cond %>% mutate_all(as.character) %>% write.csv(paste(dir, "conditions.csv", sep = ""))
 
 # cond <- cond[1:12,]
 # cond <- cond[13:24,]
@@ -60,9 +63,9 @@ sim_driver <- function(cond) {
                                cond$Bs,
                                cond$est_frm,
                                w.sd = 0),
-                       simplify = F) %>%
-    bind_rows() %>%
-    data.frame()
+                       simplify = F) #%>%
+    # bind_rows() %>%
+    # data.frame()
 
   return(results)
 
@@ -73,43 +76,52 @@ sim_driver <- function(cond) {
 # sim_driver(cond[1,])
 # # undebug(sim_driver)
 
-no_cores <- detectCores() - 1
+# no_cores <- detectCores() - 1
+no_cores <- 3
+
 
 cond <- bind_rows(replicate(no_cores, cond, simplify = FALSE))
 
-minreps <- 100
-reps <- (minreps + (no_cores - minreps %% no_cores)) / no_cores
+minreps <- 1
+reps <- floor(minreps/ no_cores) + as.numeric((minreps %% no_cores) > 0)
+
 cond$reps <- reps
+totreps <- reps * no_cores
+# cond$reps <- 1
+
 
 # Initiate cluster
 cl <- makeCluster(no_cores)
 
 # seed <- runif(1,0,1)*10^8
-set.seed(60240601)
+seed <- 60240601
+set.seed(seed)
 
 
-# runtime <- system.time(results <- parApply(cl, cond, 1, sim_driver))
-runtime <- system.time(results <- parApply(cl, cond[1,], 1, sim_driver))
+runtime <- system.time(results <- parApply(cl, cond, 1, sim_driver))
+# runtime <- system.time(results <- parApply(cl, cond[1,], 1, sim_driver))
 
 stopCluster(cl)
 
 
 
-save(runtime, reps, no_cores, file = "Results/2018-05-03/time.rdata")
-load("Results/2018-05-03/time.rdata")
+save(runtime, reps, no_cores, totreps, file = paste(dir, "time.rdata", sep = ""))
+load(paste(dir, "time.rdata", sep = ""))
 
-avgRun <- runtime / (reps * no_cores)
-round(avgRun * 200 / 60 / 60, 2) # Hours
-round(avgRun * 200 / 60, 2)      # Minutes
+avgRun <- runtime / (totreps)
+testreps <- 200
 
-save(results, cond, seed, file = "Results/2018-05-03/full.rdata")
+round(avgRun * testreps / 60 / 60, 2) # Hours
+round(avgRun * testreps / 60, 2)      # Minutes
+
+save(results, cond, seed, file = paste(dir, "full.rdata", sep = ""))
 
 cond <- mutate(cond, RID = 1:n())
 
 for(i in 1:nrow(cond)) {
   cbind(cond[i,] %>% mutate_if(is.list, as.character), results[[i]]) %>%
-    write_csv(paste("Results/2018-05-03/", cond[i,]$CID, "-", cond[i,]$RID, " Results.csv", sep = ""))
+    write_csv(paste(dir, cond[i,]$CID, "-", cond[i,]$RID, " Results.csv", sep = ""))
 }
 
 
-load("Results/2018-05-03/full.rdata")
+load(paste(dir, "full.rdata", sep = ""))
