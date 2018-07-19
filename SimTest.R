@@ -82,7 +82,7 @@ no_cores <- 3
 
 cond <- bind_rows(replicate(no_cores, cond, simplify = FALSE))
 
-minreps <- 1
+minreps <- 100
 reps <- floor(minreps/ no_cores) + as.numeric((minreps %% no_cores) > 0)
 
 cond$reps <- reps
