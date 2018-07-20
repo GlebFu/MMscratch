@@ -34,7 +34,7 @@ pull_results <- function(cond, res.df) {
     # Get true values
     # Formula %>% cond[i,"gen_frm"]
     true.est.i <- eval(parse(text = cond[i,"Bs"]))
-    true.est.i[6] <- mean(res.cond.i$u0.sd)^2
+    true.est.i[length(true.est.i) - 1] <- mean(res.cond.i$u0.sd)^2
     true.est.i <- tibble(stat = "Estimate", Parameter = res.cond.i %>% select(FE_Int:RE_ei) %>% names(), Truth = true.est.i)
     
     true.err.i <- res.est.i %>%
@@ -65,10 +65,10 @@ pull_results <- function(cond, res.df) {
   return(out.i)
 }
 
-cond <- read_csv("Results/2018-04-04/conditions.csv")[,-1]
+cond <- read_csv("Results/2018-07-18/conditions.csv")[,-1]
 
-res.files <- list.files(path = "Results/2018-04-04")[str_detect(list.files(path = "Results/2018-04-04"), "Results")]
-res.dirs <- paste("Results/2018-04-04/", res.files, sep = "")
+res.files <- list.files(path = "Results/2018-07-18")[str_detect(list.files(path = "Results/2018-07-18"), "Results")]
+res.dirs <- paste("Results/2018-07-18/", res.files, sep = "")
 res.df <- tibble(files = res.files, dirs = res.dirs) %>%
   mutate(cond = str_split(files, "-| ", simplify = T)[,1],
          part = str_split(files, "-| ", simplify = T)[,2])
@@ -80,6 +80,7 @@ cond.manipulated <- names((cond %>% mutate_all(as.factor) %>% sapply(function(x)
 rm(list = "cond.manipulated", "res.dirs", "res.files")
 
 out.i <- pull_results(cond, res.df)
+
 
 save(out.i, file = "Results/Brief/out.rdata")
 load("Results/Brief/out.rdata")
@@ -94,8 +95,9 @@ results <- bind_rows(out.i) %>%
          Parameter = factor(Parameter),
          Bs = factor(Bs))
 
-levels(results$Parameter) <- c("FE_Int", "FE_M", "FE_Mj", "FE_Xj", "FE_X", "RE_e", "RE_u")
-levels(results$Bs) <- c("Weak L2", "Strong L2")
+levels(results$Parameter) <- c("FE_Int", "FE_M", "FE_X", "RE_e", "RE_u")
+# levels(results$Bs) <- c("Weak L2", "Strong L2")
+
 
 df_sum <- results %>% filter(stat == "Estimate")
 # df_sum <- results %>% filter(stat == "Error")
@@ -122,7 +124,7 @@ df_sum %>%
   scale_fill_brewer(type = "seq", palette = 1) +
   scale_color_brewer(type = "qual", palette = 3)
 
-df_sum2 <- df_sum %>% filter(Parameter %in% c("FE_Mj", "FE_Xj", "RE_e", "RE_u"))
+df_sum2 <- df_sum %>% filter(Parameter %in% c("FE_M", "FE_X", "RE_e", "RE_u"))
 
 df_sum2 %>%
   ggplot(aes(x = Gen, y = RPB, color = Est_Equal, linetype = Est_Random, fill = Correct)) +

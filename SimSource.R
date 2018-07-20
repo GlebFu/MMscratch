@@ -1,7 +1,8 @@
 # library(R2MLwiN)
 library(tidyverse)
 
-options(MLwiN_path="C:/Users/gf4929/Desktop/MLwiN v3.01")
+# options(MLwiN_path="C:/Users/gf4929/Desktop/MLwiN v3.01")
+options(MLwiN_path="C:/Program Files/MLwiN v3.01/")
 
 # rm(list = ls())
 
@@ -60,7 +61,7 @@ moveSch <- function(prior.school, M, isMoving) {
   prior.school[isMoving] <- sapply(prior.school[isMoving], sampSch)
 
   
-  return(prior.school)
+  return(unlist(prior.school))
   
 }
 

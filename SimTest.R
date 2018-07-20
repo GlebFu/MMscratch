@@ -77,12 +77,12 @@ sim_driver <- function(cond) {
 # # undebug(sim_driver)
 
 # no_cores <- detectCores() - 1
-no_cores <- 3
+no_cores <- 1
 
 
 cond <- bind_rows(replicate(no_cores, cond, simplify = FALSE))
 
-minreps <- 100
+minreps <- 2
 reps <- floor(minreps/ no_cores) + as.numeric((minreps %% no_cores) > 0)
 
 cond$reps <- reps
@@ -115,11 +115,12 @@ round(avgRun * testreps / 60 / 60, 2) # Hours
 round(avgRun * testreps / 60, 2)      # Minutes
 
 save(results, cond, seed, file = paste(dir, "full.rdata", sep = ""))
+load(paste(dir, "full.rdata", sep = ""))
 
 cond <- mutate(cond, RID = 1:n())
 
 for(i in 1:nrow(cond)) {
-  cbind(cond[i,] %>% mutate_if(is.list, as.character), results[[i]]) %>%
+  cbind(cond[i,] %>% mutate_if(is.list, as.character), bind_rows(results[[i]])) %>%
     write_csv(paste(dir, cond[i,]$CID, "-", cond[i,]$RID, " Results.csv", sep = ""))
 }
 

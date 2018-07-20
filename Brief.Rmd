@@ -31,11 +31,15 @@ results <- bind_rows(out.i) %>%
          X_PS.cor = factor(X_PS.cor),
          M.m = factor(M.m))
 
-levels(results$Parameter) <- c("FE_Int", "FE_M", "FE_Mj", "FE_Xj", "FE_X", "RE_e", "RE_u")
-results$Parameter <- factor(results$Parameter, c("FE_Int", "FE_M", "FE_X", "FE_Mj", "FE_Xj", "RE_e", "RE_u"))
+# levels(results$Parameter) <- c("FE_Int", "FE_M", "FE_Mj", "FE_Xj", "FE_X", "RE_e", "RE_u")
+# results$Parameter <- factor(results$Parameter, c("FE_Int", "FE_M", "FE_X", "FE_Mj", "FE_Xj", "RE_e", "RE_u"))
+
+levels(results$Parameter) <- c("FE_Int", "FE_M", "FE_X", "RE_e", "RE_u")
+results$Parameter <- factor(results$Parameter, c("FE_Int", "FE_M", "FE_X", "RE_e", "RE_u"))
 
 
-levels(results$Bs) <- c("{gamma['01']==gamma['02']}==.5", "{gamma['01']==gamma['02']}==1")
+# levels(results$Bs) <- c("{gamma['01']==gamma['02']}==.5", "{gamma['01']==gamma['02']}==1")
+levels(results$Bs) <- c("{gamma['01']==gamma['02']}==1")
 levels(results$X_PS.cor) <- paste("rho[XM]==", levels(results$X_PS.cor), sep = "")
 levels(results$ICC) <- paste("ICC==", levels(results$ICC), sep = "")
 levels(results$M.m) <- paste("bar(M)==", levels(results$M.m), sep = "")
@@ -150,7 +154,8 @@ Bizarre relationship between $\rho$ and $\gamma_{M_j}$ bias
 
 ```{r, cache = T, echo = F}
 
-df_sum2 <- df_sum %>% filter(Parameter %in% c("FE_Mj", "FE_Xj", "RE_u"))
+# df_sum2 <- df_sum %>% filter(Parameter %in% c("FE_Mj", "FE_Xj", "RE_u"))
+df_sum2 <- df_sum %>% filter(Parameter %in% c("FE_M", "FE_X", "RE_u"))
 
 df_sum2 %>%
   ggplot(aes(x = Gen, y = RPB, color = Est_Equal, linetype = Est_Random, fill = Correct)) +
@@ -295,13 +300,13 @@ if(gsave) ggsave("Figs/RPB-L2 effects by Parameter.jpg", dpi = 1000, width = 11,
 ```{r, cache = T, echo = F}
 
 df_sum %>%
-  filter(Parameter == "FE_Mj") %>%
+  filter(Parameter == "RE_u") %>%
   ggplot(aes(x = Gen, y = RPB, color = Est_Equal, linetype = Est_Random, fill = Correct)) +
   geom_boxplot() +
   geom_hline(yintercept = 0) +
   geom_hline(yintercept = c(.05, -.05), linetype = "dashed") +
   # labs(title = "FE_Mj RPB - %M by cor(X,M)") +
-  facet_grid(X_PS.cor ~ M.m, labeller = label_parsed) +
+  facet_grid(X_PS.cor ~ M.m + ICC, labeller = label_parsed) +
   scale_fill_brewer(type = "seq", palette = 1, guide=FALSE) +
   scale_color_brewer(type = "qual", palette = 2) +
   theme_minimal() +
